@@ -172,6 +172,13 @@
         height: 100%;
       }
 
+      #file-picker-panel {
+        display: none;
+      }
+      #file-picker-panel:not(.hidden) {
+        display: flex;
+      }
+
       /* ── MODE SELECTION MODAL ── */
       #mode-modal {
         position: absolute;
@@ -776,6 +783,14 @@
           </button>
         </div>
 
+        <!-- ── STEP 1B: FILE PICKER (auto-loaded from test_data/) ── -->
+        <div id="file-picker-panel" class="hidden" style="position:absolute;inset:0;background:rgba(2,13,18,0.95);flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;z-index:10;">
+          <div class="modal-title">Select Test Dataset</div>
+          <div class="modal-sub">Pre-collected CSI files from test_data/</div>
+          <div id="file-picker-list" style="width:100%;max-width:320px;display:flex;flex-direction:column;gap:10px;max-height:60vh;overflow-y:auto;"></div>
+          <button class="panel-btn back" onclick="backToModes()">← BACK</button>
+        </div>
+
         <!-- ── STEP 2: FILE UPLOAD PANEL ── -->
         <!-- <div id="upload-panel" class="hidden">
           <div class="modal-title">Upload Test Wall Dataset</div>
@@ -1020,11 +1035,51 @@
       //   }
       // }
 
-      function selectMode(mode) {
+      async function selectMode(mode) {
         if (mode === 1) {
           modeModal.classList.add("hidden");
-          startAnalysis(); // 🚀 directly start
+          // Fetch available test files from backend, then show picker
+          setStatus("LOADING TEST FILES...", "scanning");
+          try {
+            const res = await fetch("http://127.0.0.1:5000/list-tests");
+            const data = await res.json();
+            if (data.files && data.files.length > 0) {
+              showFilePicker(data.files);
+            } else {
+              logMsg("❌ No test CSV files found in test_data/ folder");
+              setStatus("ERROR — NO TEST FILES FOUND", "");
+              analysisPanel.classList.remove("hidden");
+              document.getElementById("progress-fill").style.width = "0%";
+            }
+          } catch (err) {
+            // Backend unreachable — show error in analysis panel
+            analysisPanel.classList.remove("hidden");
+            document.getElementById("progress-log").innerHTML = "";
+            document.getElementById("progress-fill").style.width = "0%";
+            logMsg("❌ Cannot reach backend at http://127.0.0.1:5000");
+            logMsg("Make sure app.py is running: python app.py");
+            setStatus("ERROR — BACKEND NOT RUNNING", "");
+          }
         }
+      }
+
+      // ── FILE PICKER (auto-populated from backend) ──
+      function showFilePicker(files) {
+        const picker = document.getElementById("file-picker-panel");
+        const list = document.getElementById("file-picker-list");
+        list.innerHTML = "";
+        files.forEach(name => {
+          const btn = document.createElement("button");
+          btn.className = "mode-btn";
+          btn.innerHTML = `<span class="mode-label">📂 ${name}</span>`;
+          btn.onclick = () => {
+            picker.classList.add("hidden");
+            startAnalysis(name);
+          };
+          list.appendChild(btn);
+        });
+        picker.classList.remove("hidden");
+        setStatus("SELECT TEST DATASET", "scanning");
       }
       function backToModes() {
         uploadPanel.classList.add("hidden");
@@ -1038,6 +1093,8 @@
         modeModal.classList.add("hidden");
         uploadPanel.classList.add("hidden");
         analysisPanel.classList.add("hidden");
+        const fp = document.getElementById("file-picker-panel");
+        if (fp) fp.classList.add("hidden");
       }
 
       // ── FILE SELECTION ──
@@ -1441,7 +1498,7 @@
           : "Inactive";
       }
 
-      function startAnalysis() {
+      function startAnalysis(filename) {
         analysisPanel.classList.remove("hidden");
         setStatus("ANALYSING...", "scanning");
         scanOverlay.classList.add("active");
@@ -1450,13 +1507,29 @@
         document.getElementById("progress-fill").style.width = "10%";
 
         logMsg("📡 Connecting to backend...");
+        logMsg(`📂 Loading: ${filename || "auto-select"}`);
         document.getElementById("progress-fill").style.width = "30%";
 
-        fetch("http://127.0.0.1:5000/run-test") // 🔥 YOUR FLASK API
+        fetch("http://127.0.0.1:5000/run-test", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filename: filename || null })
+        })
           .then((res) => res.json())
           .then((data) => {
+            if (data.error) {
+              logMsg("❌ Backend error: " + data.error);
+              setStatus("ERROR — " + data.error.toUpperCase().slice(0, 40), "");
+              document.getElementById("progress-fill").style.width = "100%";
+              return;
+            }
             document.getElementById("progress-fill").style.width = "100%";
+            logMsg(`✓ Scanned ${data.total_windows} windows`);
+            logMsg(`✓ Wet detections: ${data.wet_windows}`);
             logMsg("✓ Analysis complete!");
+
+            document.getElementById("csi-test-file").textContent = data.test_file || "—";
+            document.getElementById("csi-windows").textContent = data.total_windows || 0;
 
             setTimeout(() => {
               hideAllPanels();
