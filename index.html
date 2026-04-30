@@ -5,54 +5,36 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>WiFi Leak Detection System</title>
 
-<!-- TensorFlow.js -->
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js"></script>
-<!-- PapaParse for CSV -->
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-<!-- Google Fonts -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700;900&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet" />
 
 <style>
-/* ============================
-   DESIGN SYSTEM — INDUSTRIAL
-   ============================ */
 :root {
   --bg:        #0b0c0e;
   --surface:   #111318;
   --panel:     #16191f;
   --border:    #242830;
   --border-hi: #343b47;
-
   --text:      #d4dae6;
   --text-muted:#6b7385;
   --text-dim:  #3d4455;
-
   --cyan:      #00e5ff;
   --cyan-dim:  rgba(0,229,255,0.12);
   --cyan-glow: rgba(0,229,255,0.35);
-
   --amber:     #ffb300;
-  --amber-dim: rgba(255,179,0,0.12);
-
   --red:       #ff3b3b;
   --red-dim:   rgba(255,59,59,0.12);
-
   --green:     #00e676;
   --green-dim: rgba(0,230,118,0.12);
-
   --mono: 'Share Tech Mono', monospace;
   --cond: 'Barlow Condensed', sans-serif;
   --body: 'Barlow', sans-serif;
-
   --radius: 2px;
-  --transition: 0.18s ease;
+  --tr: 0.18s ease;
 }
-
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-html { font-size: 16px; }
-
 body {
   background: var(--bg);
   color: var(--text);
@@ -61,625 +43,165 @@ body {
   min-height: 100vh;
   overflow-x: hidden;
 }
-
-/* ============================
-   BACKGROUND GRID TEXTURE
-   ============================ */
 body::before {
   content: '';
-  position: fixed;
-  inset: 0;
+  position: fixed; inset: 0;
   background-image:
     linear-gradient(rgba(0,229,255,0.025) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0,229,255,0.025) 1px, transparent 1px);
   background-size: 40px 40px;
-  pointer-events: none;
-  z-index: 0;
+  pointer-events: none; z-index: 0;
 }
-
-/* ============================
-   LAYOUT
-   ============================ */
 .shell {
-  position: relative;
-  z-index: 1;
-  max-width: 1200px;
-  margin: 0 auto;
+  position: relative; z-index: 1;
+  max-width: 1200px; margin: 0 auto;
   padding: 0 24px 80px;
 }
 
-/* ============================
-   HEADER
-   ============================ */
+/* HEADER */
 header {
-  display: flex;
-  align-items: flex-end;
+  display: flex; align-items: flex-end;
   justify-content: space-between;
   padding: 36px 0 28px;
   border-bottom: 1px solid var(--border);
   margin-bottom: 36px;
-  gap: 20px;
-  flex-wrap: wrap;
+  gap: 20px; flex-wrap: wrap;
 }
+.logo-tag { font-family: var(--mono); font-size: 10px; letter-spacing:.2em; color:var(--cyan); text-transform:uppercase; margin-bottom:6px; }
+.logo-title { font-family:var(--cond); font-size:42px; font-weight:900; letter-spacing:-.01em; line-height:1; text-transform:uppercase; }
+.logo-title span { color:var(--cyan); }
+.header-status { display:flex; align-items:center; gap:10px; font-family:var(--mono); font-size:11px; color:var(--text-muted); letter-spacing:.08em; }
+.status-dot { width:8px; height:8px; border-radius:50%; background:var(--text-dim); transition:var(--tr); }
+.status-dot.ok    { background:var(--green); box-shadow:0 0 8px var(--green); }
+.status-dot.err   { background:var(--red);   box-shadow:0 0 8px var(--red); }
+.status-dot.loading { background:var(--amber); animation:pulse 1s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
 
-.logo-block {}
-.logo-tag {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.2em;
-  color: var(--cyan);
-  text-transform: uppercase;
-  margin-bottom: 6px;
-}
-.logo-title {
-  font-family: var(--cond);
-  font-size: 42px;
-  font-weight: 900;
-  letter-spacing: -0.01em;
-  line-height: 1;
-  color: var(--text);
-  text-transform: uppercase;
-}
-.logo-title span { color: var(--cyan); }
+/* GRID */
+.main-grid { display:grid; grid-template-columns:340px 1fr; gap:20px; }
+@media(max-width:900px){ .main-grid{grid-template-columns:1fr} }
 
-.header-status {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--text-muted);
-  letter-spacing: 0.08em;
-}
-.status-dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: var(--text-dim);
-  transition: var(--transition);
-}
-.status-dot.ok { background: var(--green); box-shadow: 0 0 8px var(--green); }
-.status-dot.err { background: var(--red); box-shadow: 0 0 8px var(--red); }
-.status-dot.loading {
-  background: var(--amber);
-  animation: pulse 1s ease-in-out infinite;
-}
-@keyframes pulse {
-  0%,100% { opacity: 1; }
-  50% { opacity: 0.3; }
-}
+/* PANEL */
+.panel { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+.panel-header { display:flex; align-items:center; gap:10px; padding:14px 18px; border-bottom:1px solid var(--border); background:var(--panel); }
+.panel-label { font-family:var(--mono); font-size:10px; letter-spacing:.18em; color:var(--text-muted); text-transform:uppercase; flex:1; }
+.panel-icon { width:6px; height:6px; border-radius:50%; background:var(--border-hi); }
+.panel-body { padding:18px; }
+.section-label { font-family:var(--mono); font-size:9px; letter-spacing:.2em; color:var(--text-dim); text-transform:uppercase; margin-bottom:10px; }
 
-/* ============================
-   MAIN GRID
-   ============================ */
-.main-grid {
-  display: grid;
-  grid-template-columns: 340px 1fr;
-  gap: 20px;
-}
+/* FILE LIST */
+.file-list { display:flex; flex-direction:column; gap:4px; max-height:280px; overflow-y:auto; scrollbar-width:thin; scrollbar-color:var(--border-hi) transparent; }
+.file-item { display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius); cursor:pointer; transition:var(--tr); font-family:var(--mono); font-size:11px; color:var(--text-muted); background:transparent; word-break:break-all; }
+.file-item:hover { border-color:var(--border-hi); color:var(--text); background:var(--panel); }
+.file-item.selected { border-color:var(--cyan); color:var(--cyan); background:var(--cyan-dim); }
+.file-item::before { content:'▸'; font-size:9px; opacity:.5; flex-shrink:0; }
+.file-item.selected::before { opacity:1; }
+.file-empty { font-family:var(--mono); font-size:11px; color:var(--text-dim); padding:20px 0; text-align:center; }
 
-@media (max-width: 900px) {
-  .main-grid { grid-template-columns: 1fr; }
-}
+/* UPLOAD */
+.upload-zone { margin-top:16px; border:1px dashed var(--border-hi); border-radius:var(--radius); padding:18px 16px; text-align:center; cursor:pointer; transition:var(--tr); }
+.upload-zone:hover, .upload-zone.drag-over { border-color:var(--cyan); background:var(--cyan-dim); }
+.upload-zone input { display:none; }
+.upload-zone-label { font-family:var(--mono); font-size:10px; letter-spacing:.1em; color:var(--text-muted); cursor:pointer; }
+.upload-zone:hover .upload-zone-label { color:var(--cyan); }
 
-/* ============================
-   PANELS
-   ============================ */
-.panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
+/* CONFIG */
+.config-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px; }
+.config-field label { display:block; font-family:var(--mono); font-size:9px; letter-spacing:.15em; color:var(--text-dim); text-transform:uppercase; margin-bottom:5px; }
+.config-field input { width:100%; background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); color:var(--text); font-family:var(--mono); font-size:13px; padding:8px 10px; outline:none; transition:var(--tr); }
+.config-field input:focus { border-color:var(--cyan); box-shadow:0 0 0 2px var(--cyan-dim); }
 
-.panel-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--border);
-  background: var(--panel);
-}
-.panel-label {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.18em;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  flex: 1;
-}
-.panel-icon {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--border-hi);
-}
+/* RUN BUTTON */
+.run-btn { display:flex; align-items:center; justify-content:center; gap:10px; width:100%; margin-top:18px; padding:14px 20px; background:var(--cyan); color:var(--bg); border:none; border-radius:var(--radius); font-family:var(--cond); font-size:15px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; cursor:pointer; transition:var(--tr); position:relative; overflow:hidden; }
+.run-btn::after { content:''; position:absolute; inset:0; background:white; opacity:0; transition:opacity .15s; }
+.run-btn:hover::after { opacity:.08; }
+.run-btn:active { transform:scale(.99); }
+.run-btn:disabled { background:var(--border-hi); color:var(--text-dim); cursor:not-allowed; }
+.run-btn:disabled::after { display:none; }
+.btn-spinner { width:14px; height:14px; border:2px solid rgba(0,0,0,.3); border-top-color:var(--bg); border-radius:50%; animation:spin .6s linear infinite; display:none; }
+.run-btn.running .btn-spinner { display:block; }
+@keyframes spin { to{transform:rotate(360deg)} }
 
-.panel-body { padding: 18px; }
+/* PROGRESS */
+.progress-wrap { margin-top:16px; display:none; }
+.progress-wrap.visible { display:block; }
+.progress-label { display:flex; justify-content:space-between; font-family:var(--mono); font-size:10px; color:var(--text-muted); margin-bottom:6px; }
+.progress-track { height:3px; background:var(--border); border-radius:99px; overflow:hidden; }
+.progress-fill { height:100%; background:var(--cyan); border-radius:99px; width:0%; transition:width .3s ease; box-shadow:0 0 8px var(--cyan-glow); }
 
-/* ============================
-   SECTION LABEL
-   ============================ */
-.section-label {
-  font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 0.2em;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  margin-bottom: 10px;
-}
+/* LOG */
+.log-console { margin-top:16px; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); padding:12px; font-family:var(--mono); font-size:11px; line-height:1.7; max-height:160px; overflow-y:auto; scrollbar-width:thin; scrollbar-color:var(--border-hi) transparent; }
+.log-line { color:var(--text-muted); }
+.log-line.info { color:var(--cyan); }
+.log-line.warn { color:var(--amber); }
+.log-line.err  { color:var(--red); }
+.log-line.ok   { color:var(--green); }
+.log-prefix { color:var(--text-dim); margin-right:6px; }
 
-/* ============================
-   FILE SELECTOR
-   ============================ */
-.file-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-height: 300px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-hi) transparent;
-}
+/* RIGHT COL */
+.right-col { display:flex; flex-direction:column; gap:20px; }
 
-.file-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  cursor: pointer;
-  transition: var(--transition);
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--text-muted);
-  background: transparent;
-  word-break: break-all;
-}
-.file-item:hover {
-  border-color: var(--border-hi);
-  color: var(--text);
-  background: var(--panel);
-}
-.file-item.selected {
-  border-color: var(--cyan);
-  color: var(--cyan);
-  background: var(--cyan-dim);
-}
-.file-item::before {
-  content: '▸';
-  font-size: 9px;
-  opacity: 0.5;
-  flex-shrink: 0;
-}
-.file-item.selected::before { opacity: 1; }
+/* VERDICT */
+.verdict-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; transition:var(--tr); }
+.verdict-card.wet  { border-color:var(--red);   box-shadow:0 0 30px rgba(255,59,59,.08); }
+.verdict-card.dry  { border-color:var(--green);  box-shadow:0 0 30px rgba(0,230,118,.08); }
+.verdict-inner { padding:28px 28px 24px; display:flex; align-items:center; gap:24px; }
+.verdict-icon { font-size:52px; line-height:1; transition:var(--tr); }
+.verdict-card.wet  .verdict-icon { color:var(--red); }
+.verdict-card.dry  .verdict-icon { color:var(--green); }
+.verdict-card.idle .verdict-icon { color:var(--text-dim); }
+.verdict-main { font-family:var(--cond); font-size:36px; font-weight:900; letter-spacing:.03em; text-transform:uppercase; line-height:1; }
+.verdict-card.wet  .verdict-main { color:var(--red); }
+.verdict-card.dry  .verdict-main { color:var(--green); }
+.verdict-card.idle .verdict-main { color:var(--text-dim); }
+.verdict-sub { font-family:var(--body); font-size:13px; color:var(--text-muted); margin-top:5px; font-weight:300; }
+.stats-row { display:grid; grid-template-columns:repeat(4,1fr); border-top:1px solid var(--border); }
+.stat-cell { padding:14px 18px; border-right:1px solid var(--border); }
+.stat-cell:last-child { border-right:none; }
+.stat-val { font-family:var(--mono); font-size:22px; color:var(--text); line-height:1; }
+.stat-lbl { font-family:var(--mono); font-size:9px; letter-spacing:.15em; color:var(--text-dim); text-transform:uppercase; margin-top:4px; }
 
-.file-empty {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--text-dim);
-  padding: 20px 0;
-  text-align: center;
-}
+/* PROB CHART */
+.prob-chart-wrap { position:relative; height:80px; }
+canvas#prob-chart { display:block; width:100%; height:100%; }
+.threshold-label { position:absolute; right:0; top:0; font-family:var(--mono); font-size:9px; color:var(--amber); letter-spacing:.08em; padding:2px 4px; background:var(--panel); border:1px solid var(--border); }
 
-/* Upload zone */
-.upload-zone {
-  margin-top: 16px;
-  border: 1px dashed var(--border-hi);
-  border-radius: var(--radius);
-  padding: 20px 16px;
-  text-align: center;
-  cursor: pointer;
-  transition: var(--transition);
-}
-.upload-zone:hover, .upload-zone.drag-over {
-  border-color: var(--cyan);
-  background: var(--cyan-dim);
-}
-.upload-zone input { display: none; }
-.upload-zone-label {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-.upload-zone:hover .upload-zone-label { color: var(--cyan); }
+/* HEATMAP */
+.heatmap-wrap { position:relative; background:var(--bg); border-radius:var(--radius); overflow:hidden; }
+canvas#heatmap { display:block; width:100%; height:auto; }
+.heatmap-overlay { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:12px; color:var(--text-dim); letter-spacing:.1em; pointer-events:none; }
+.colorbar { display:flex; align-items:center; gap:10px; margin-top:12px; padding:0 4px; }
+.colorbar-track { flex:1; height:6px; border-radius:99px; background:linear-gradient(to right,#0b0c0e 0%,#00334d 20%,#0077a0 50%,#00c8ff 75%,#ffffff 100%); }
+.colorbar-label { font-family:var(--mono); font-size:9px; color:var(--text-dim); letter-spacing:.1em; white-space:nowrap; }
 
-/* ============================
-   CONFIG ROW
-   ============================ */
-.config-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-top: 16px;
-}
+/* COORD TABLE */
+.coord-table-wrap { max-height:220px; overflow-y:auto; scrollbar-width:thin; scrollbar-color:var(--border-hi) transparent; }
+table.coord-table { width:100%; border-collapse:collapse; font-family:var(--mono); font-size:11px; }
+.coord-table thead th { padding:6px 12px; text-align:left; font-size:9px; letter-spacing:.15em; color:var(--text-dim); text-transform:uppercase; border-bottom:1px solid var(--border); background:var(--panel); position:sticky; top:0; }
+.coord-table tbody td { padding:7px 12px; border-bottom:1px solid var(--border); color:var(--text-muted); }
+.coord-table tbody tr:last-child td { border-bottom:none; }
+.coord-table tbody tr:hover td { color:var(--text); background:var(--panel); }
+.coord-table .x-val { color:var(--cyan); }
+.coord-table .y-val { color:var(--amber); }
+.coord-table .empty-row td { text-align:center; color:var(--text-dim); padding:24px 0; }
 
-.config-field label {
-  display: block;
-  font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 0.15em;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  margin-bottom: 5px;
-}
-.config-field input {
-  width: 100%;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--text);
-  font-family: var(--mono);
-  font-size: 13px;
-  padding: 8px 10px;
-  outline: none;
-  transition: var(--transition);
-}
-.config-field input:focus {
-  border-color: var(--cyan);
-  box-shadow: 0 0 0 2px var(--cyan-dim);
-}
+/* TAG */
+.tag { display:inline-block; font-family:var(--mono); font-size:9px; letter-spacing:.12em; padding:2px 7px; border-radius:2px; text-transform:uppercase; background:var(--border); color:var(--text-muted); }
+.tag.cyan { background:var(--cyan-dim); color:var(--cyan); border:1px solid rgba(0,229,255,.2); }
 
-/* ============================
-   RUN BUTTON
-   ============================ */
-.run-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  width: 100%;
-  margin-top: 18px;
-  padding: 14px 20px;
-  background: var(--cyan);
-  color: var(--bg);
-  border: none;
-  border-radius: var(--radius);
-  font-family: var(--cond);
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: var(--transition);
-  position: relative;
-  overflow: hidden;
-}
-.run-btn::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: white;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-.run-btn:hover::after { opacity: 0.08; }
-.run-btn:active { transform: scale(0.99); }
-.run-btn:disabled {
-  background: var(--border-hi);
-  color: var(--text-dim);
-  cursor: not-allowed;
-}
-.run-btn:disabled::after { display: none; }
+.mt-16 { margin-top:16px; }
 
-.btn-spinner {
-  width: 14px; height: 14px;
-  border: 2px solid rgba(0,0,0,0.3);
-  border-top-color: var(--bg);
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
-  display: none;
-}
-.run-btn.running .btn-spinner { display: block; }
-@keyframes spin { to { transform: rotate(360deg); } }
-
-/* ============================
-   PROGRESS BAR
-   ============================ */
-.progress-wrap {
-  margin-top: 16px;
-  display: none;
-}
-.progress-wrap.visible { display: block; }
-.progress-label {
-  display: flex;
-  justify-content: space-between;
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--text-muted);
-  margin-bottom: 6px;
-}
-.progress-track {
-  height: 3px;
-  background: var(--border);
-  border-radius: 99px;
-  overflow: hidden;
-}
-.progress-fill {
-  height: 100%;
-  background: var(--cyan);
-  border-radius: 99px;
-  width: 0%;
-  transition: width 0.3s ease;
-  box-shadow: 0 0 8px var(--cyan-glow);
-}
-
-/* ============================
-   LOG CONSOLE
-   ============================ */
-.log-console {
-  margin-top: 16px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 12px;
-  font-family: var(--mono);
-  font-size: 11px;
-  line-height: 1.7;
-  max-height: 140px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-hi) transparent;
-}
-.log-line { color: var(--text-muted); }
-.log-line.info { color: var(--cyan); }
-.log-line.warn { color: var(--amber); }
-.log-line.err  { color: var(--red); }
-.log-line.ok   { color: var(--green); }
-.log-prefix { color: var(--text-dim); margin-right: 6px; }
-
-/* ============================
-   RIGHT COLUMN
-   ============================ */
-.right-col {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-/* ============================
-   VERDICT CARD
-   ============================ */
-.verdict-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
-  transition: var(--transition);
-}
-.verdict-card.wet {
-  border-color: var(--red);
-  box-shadow: 0 0 30px rgba(255,59,59,0.08), inset 0 0 40px rgba(255,59,59,0.03);
-}
-.verdict-card.dry {
-  border-color: var(--green);
-  box-shadow: 0 0 30px rgba(0,230,118,0.08), inset 0 0 40px rgba(0,230,118,0.03);
-}
-
-.verdict-inner {
-  padding: 28px 28px 24px;
-  display: flex;
-  align-items: center;
-  gap: 24px;
-}
-
-.verdict-icon {
-  font-size: 52px;
-  line-height: 1;
-  filter: drop-shadow(0 0 16px currentColor);
-  transition: var(--transition);
-}
-.verdict-card.wet  .verdict-icon { color: var(--red); }
-.verdict-card.dry  .verdict-icon { color: var(--green); }
-.verdict-card.idle .verdict-icon { color: var(--text-dim); }
-
-.verdict-text {}
-.verdict-main {
-  font-family: var(--cond);
-  font-size: 36px;
-  font-weight: 900;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  line-height: 1;
-}
-.verdict-card.wet  .verdict-main { color: var(--red); }
-.verdict-card.dry  .verdict-main { color: var(--green); }
-.verdict-card.idle .verdict-main { color: var(--text-dim); }
-
-.verdict-sub {
-  font-family: var(--body);
-  font-size: 13px;
-  color: var(--text-muted);
-  margin-top: 5px;
-  font-weight: 300;
-}
-
-/* STATS ROW */
-.stats-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  border-top: 1px solid var(--border);
-}
-.stat-cell {
-  padding: 14px 18px;
-  border-right: 1px solid var(--border);
-}
-.stat-cell:last-child { border-right: none; }
-.stat-val {
-  font-family: var(--mono);
-  font-size: 22px;
-  color: var(--text);
-  line-height: 1;
-}
-.stat-lbl {
-  font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 0.15em;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  margin-top: 4px;
-}
-
-/* ============================
-   HEATMAP CANVAS
-   ============================ */
-.heatmap-panel {}
-.heatmap-wrap {
-  position: relative;
-  background: var(--bg);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-canvas#heatmap {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-.heatmap-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--text-dim);
-  letter-spacing: 0.1em;
-  pointer-events: none;
-}
-
-/* Colorbar */
-.colorbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 12px;
-  padding: 0 4px;
-}
-.colorbar-track {
-  flex: 1;
-  height: 6px;
-  border-radius: 99px;
-  background: linear-gradient(to right,
-    #0b0c0e 0%,
-    #00334d 20%,
-    #0077a0 50%,
-    #00c8ff 75%,
-    #ffffff 100%
-  );
-}
-.colorbar-label {
-  font-family: var(--mono);
-  font-size: 9px;
-  color: var(--text-dim);
-  letter-spacing: 0.1em;
-  white-space: nowrap;
-}
-
-/* ============================
-   PROB CHART
-   ============================ */
-.prob-chart-wrap {
-  position: relative;
-  height: 80px;
-}
-canvas#prob-chart {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-.threshold-label {
-  position: absolute;
-  right: 0;
-  top: 0;
-  font-family: var(--mono);
-  font-size: 9px;
-  color: var(--amber);
-  letter-spacing: 0.08em;
-  padding: 2px 4px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-}
-
-/* ============================
-   COORD TABLE
-   ============================ */
-.coord-table-wrap {
-  max-height: 220px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-hi) transparent;
-}
-table.coord-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-family: var(--mono);
-  font-size: 11px;
-}
-.coord-table thead th {
-  padding: 6px 12px;
-  text-align: left;
-  font-size: 9px;
-  letter-spacing: 0.15em;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  border-bottom: 1px solid var(--border);
-  background: var(--panel);
-  position: sticky;
-  top: 0;
-}
-.coord-table tbody td {
-  padding: 7px 12px;
-  border-bottom: 1px solid var(--border);
-  color: var(--text-muted);
-}
-.coord-table tbody tr:last-child td { border-bottom: none; }
-.coord-table tbody tr:hover td { color: var(--text); background: var(--panel); }
-.coord-table .x-val { color: var(--cyan); }
-.coord-table .y-val { color: var(--amber); }
-.coord-table .empty-row td {
-  text-align: center;
-  color: var(--text-dim);
-  padding: 24px 0;
-}
-
-/* ============================
-   SCROLLBAR GLOBAL
-   ============================ */
-::-webkit-scrollbar { width: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 99px; }
-
-/* ============================
-   UTILITY
-   ============================ */
-.mt-16 { margin-top: 16px; }
-.mt-10 { margin-top: 10px; }
-.tag {
-  display: inline-block;
-  font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 0.12em;
-  padding: 2px 7px;
-  border-radius: 2px;
-  text-transform: uppercase;
-  background: var(--border);
-  color: var(--text-muted);
-}
-.tag.cyan { background: var(--cyan-dim); color: var(--cyan); border: 1px solid rgba(0,229,255,0.2); }
-.tag.red  { background: var(--red-dim);  color: var(--red);  border: 1px solid rgba(255,59,59,0.2); }
-.tag.green{ background: var(--green-dim);color: var(--green);border: 1px solid rgba(0,230,118,0.2);}
+::-webkit-scrollbar { width:5px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border-hi); border-radius:99px; }
 </style>
 </head>
 <body>
-
 <div class="shell">
 
-  <!-- HEADER -->
   <header>
     <div class="logo-block">
-      <div class="logo-tag">CSI · v2.0 · TF.js</div>
+      <div class="logo-tag">CSI · TF.js · In-Browser Inference</div>
       <div class="logo-title">WiFi <span>Leak</span> Detect</div>
     </div>
     <div class="header-status">
@@ -688,10 +210,9 @@ table.coord-table {
     </div>
   </header>
 
-  <!-- MAIN GRID -->
   <div class="main-grid">
 
-    <!-- LEFT: CONTROL PANEL -->
+    <!-- LEFT -->
     <div class="left-col">
       <div class="panel">
         <div class="panel-header">
@@ -699,16 +220,13 @@ table.coord-table {
           <div class="panel-label">Test File Selection</div>
         </div>
         <div class="panel-body">
-          <div class="section-label">Server files</div>
+          <div class="section-label">Server files (test_data/)</div>
           <div class="file-list" id="file-list">
             <div class="file-empty" id="file-empty">Loading…</div>
           </div>
-
           <div class="upload-zone" id="upload-zone">
             <input type="file" id="csv-upload" accept=".csv" />
-            <label class="upload-zone-label" for="csv-upload">
-              ↑ &nbsp;Drop / click to upload local CSV
-            </label>
+            <label class="upload-zone-label" for="csv-upload">↑ &nbsp;Drop or click to upload local CSV</label>
           </div>
         </div>
       </div>
@@ -745,7 +263,7 @@ table.coord-table {
 
           <div class="progress-wrap" id="progress-wrap">
             <div class="progress-label">
-              <span id="prog-msg">Processing windows…</span>
+              <span id="prog-msg">Processing…</span>
               <span id="prog-pct">0%</span>
             </div>
             <div class="progress-track">
@@ -758,10 +276,9 @@ table.coord-table {
       </div>
     </div>
 
-    <!-- RIGHT: RESULTS -->
+    <!-- RIGHT -->
     <div class="right-col">
 
-      <!-- VERDICT -->
       <div class="verdict-card idle" id="verdict-card">
         <div class="verdict-inner">
           <div class="verdict-icon" id="verdict-icon">◈</div>
@@ -771,26 +288,13 @@ table.coord-table {
           </div>
         </div>
         <div class="stats-row">
-          <div class="stat-cell">
-            <div class="stat-val" id="stat-windows">—</div>
-            <div class="stat-lbl">Total Windows</div>
-          </div>
-          <div class="stat-cell">
-            <div class="stat-val" id="stat-wet">—</div>
-            <div class="stat-lbl">Wet Windows</div>
-          </div>
-          <div class="stat-cell">
-            <div class="stat-val" id="stat-ratio">—</div>
-            <div class="stat-lbl">Wet Ratio</div>
-          </div>
-          <div class="stat-cell">
-            <div class="stat-val" id="stat-packets">—</div>
-            <div class="stat-lbl">CSI Packets</div>
-          </div>
+          <div class="stat-cell"><div class="stat-val" id="stat-windows">—</div><div class="stat-lbl">Total Windows</div></div>
+          <div class="stat-cell"><div class="stat-val" id="stat-wet">—</div><div class="stat-lbl">Wet Windows</div></div>
+          <div class="stat-cell"><div class="stat-val" id="stat-ratio">—</div><div class="stat-lbl">Wet Ratio</div></div>
+          <div class="stat-cell"><div class="stat-val" id="stat-packets">—</div><div class="stat-lbl">CSI Packets</div></div>
         </div>
       </div>
 
-      <!-- PROB TIMELINE -->
       <div class="panel">
         <div class="panel-header">
           <div class="panel-icon"></div>
@@ -800,20 +304,19 @@ table.coord-table {
         <div class="panel-body">
           <div class="prob-chart-wrap">
             <canvas id="prob-chart"></canvas>
-            <div class="threshold-label" id="thresh-line-label">THR</div>
+            <div class="threshold-label">THR</div>
           </div>
         </div>
       </div>
 
-      <!-- HEATMAP -->
-      <div class="panel heatmap-panel">
+      <div class="panel">
         <div class="panel-header">
           <div class="panel-icon"></div>
           <div class="panel-label">Localization Heatmap</div>
           <span class="tag" id="coord-count-tag">0 coords</span>
         </div>
         <div class="panel-body">
-          <div class="heatmap-wrap" id="heatmap-wrap">
+          <div class="heatmap-wrap">
             <canvas id="heatmap" width="600" height="400"></canvas>
             <div class="heatmap-overlay" id="heatmap-overlay">NO DATA</div>
           </div>
@@ -825,23 +328,15 @@ table.coord-table {
         </div>
       </div>
 
-      <!-- COORD TABLE -->
       <div class="panel">
         <div class="panel-header">
           <div class="panel-icon"></div>
           <div class="panel-label">Localized Coordinates</div>
         </div>
-        <div class="panel-body" style="padding:0;">
+        <div class="panel-body" style="padding:0">
           <div class="coord-table-wrap">
             <table class="coord-table">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>X (m)</th>
-                  <th>Y (m)</th>
-                  <th>Window</th>
-                </tr>
-              </thead>
+              <thead><tr><th>#</th><th>X (m)</th><th>Y (m)</th><th>Window</th></tr></thead>
               <tbody id="coord-tbody">
                 <tr class="empty-row"><td colspan="4">No results yet</td></tr>
               </tbody>
@@ -850,249 +345,210 @@ table.coord-table {
         </div>
       </div>
 
-    </div><!-- /right-col -->
-  </div><!-- /main-grid -->
+    </div>
+  </div>
+</div>
 
-</div><!-- /shell -->
-
-<!-- =====================================================
-     JAVASCRIPT — TF.JS IN-BROWSER INFERENCE
-     ===================================================== -->
 <script>
-// ==============================
-// CONFIG & STATE
-// ==============================
-const CFG = {
-  DET_MODEL_URL:  '/detection_model/model.json',
-  LOC_MODEL_URL:  '/localization_model/model.json',
-  DET_SCALER_URL: '/scaler_params.json',
-  LOC_SCALER_URL: '/loc_scaler_params.json',
-  CSI_LEN: 384,
+// ─────────────────────────────────────────────
+// URLS — match exactly what app.py serves
+// ─────────────────────────────────────────────
+const URLS = {
+  detModel:  '/detection_model/model.json',    // → models/detection/model.json
+  locModel:  '/localization_model/model.json', // → models/localization/model.json
+  detScaler: '/scaler_params.json',            // → models/detection/scaler_params.json
+  locScaler: '/loc_scaler_params.json',        // → models/localization/scaler_params.json
 };
+
+const CSI_LEN = 384;
 
 const state = {
-  detModel:  null,
-  locModel:  null,
-  detScaler: null,
-  locScaler: null,
-  selectedFile: null,   // { type: 'server'|'local', name, data }
+  detModel: null, locModel: null,
+  detScaler: null, locScaler: null,
+  selectedFile: null,
   running: false,
-  allProbs: [],
-  coords: [],
+  allProbs: [], coords: [],
 };
 
-// ==============================
+// ─────────────────────────────────────────────
 // LOGGING
-// ==============================
+// ─────────────────────────────────────────────
 function log(msg, type = '') {
   const el = document.getElementById('log-console');
   const ts = new Date().toLocaleTimeString('en', { hour12: false });
-  const line = document.createElement('div');
-  line.className = 'log-line ' + type;
-  line.innerHTML = `<span class="log-prefix">[${ts}]</span>${msg}`;
-  el.appendChild(line);
+  const div = document.createElement('div');
+  div.className = 'log-line ' + type;
+  div.innerHTML = `<span class="log-prefix">[${ts}]</span>${msg}`;
+  el.appendChild(div);
   el.scrollTop = el.scrollHeight;
 }
 
-// ==============================
-// SYSTEM STATUS DOT
-// ==============================
-function setSysStatus(status, label) {
-  const dot = document.getElementById('sys-dot');
-  const lbl = document.getElementById('sys-label');
-  dot.className = 'status-dot ' + status;
-  lbl.textContent = label;
+function setSys(cls, label) {
+  document.getElementById('sys-dot').className = 'status-dot ' + cls;
+  document.getElementById('sys-label').textContent = label;
 }
 
-// ==============================
-// LOAD MODELS & SCALERS
-// ==============================
-async function initSystem() {
-  setSysStatus('loading', 'LOADING MODELS');
-  log('Initializing TensorFlow.js backend…', 'info');
+// ─────────────────────────────────────────────
+// INIT — load models & scalers
+// ─────────────────────────────────────────────
+async function init() {
+  setSys('loading', 'LOADING MODELS');
+  log('Starting TensorFlow.js…', 'info');
 
   try {
     await tf.ready();
     log(`TF backend: ${tf.getBackend()}`, 'info');
 
-    // Load detection model
-    log('Loading detection model…');
-    state.detModel = await tf.loadLayersModel(CFG.DET_MODEL_URL);
-    log('Detection model ready ✓', 'ok');
+    log('Loading detection model from ' + URLS.detModel + '…');
+    state.detModel = await tf.loadLayersModel(URLS.detModel);
+    log('Detection model ✓', 'ok');
 
-    // Load localization model
-    log('Loading localization model…');
-    state.locModel = await tf.loadLayersModel(CFG.LOC_MODEL_URL);
-    log('Localization model ready ✓', 'ok');
+    log('Loading localization model from ' + URLS.locModel + '…');
+    state.locModel = await tf.loadLayersModel(URLS.locModel);
+    log('Localization model ✓', 'ok');
 
-    // Load scalers
-    log('Loading scalers…');
-    const detRes = await fetch(CFG.DET_SCALER_URL);
-    if (!detRes.ok) throw new Error(`Det scaler not found at ${CFG.DET_SCALER_URL}`);
-    state.detScaler = await detRes.json();
+    log('Loading detection scaler…');
+    const dr = await fetch(URLS.detScaler);
+    if (!dr.ok) throw new Error(`${URLS.detScaler} → HTTP ${dr.status}`);
+    state.detScaler = await dr.json();
+    log('Detection scaler ✓', 'ok');
 
-    const locRes = await fetch(CFG.LOC_SCALER_URL);
-    if (!locRes.ok) throw new Error(`Loc scaler not found at ${CFG.LOC_SCALER_URL}`);
-    state.locScaler = await locRes.json();
+    log('Loading localization scaler…');
+    const lr = await fetch(URLS.locScaler);
+    if (!lr.ok) throw new Error(`${URLS.locScaler} → HTTP ${lr.status}`);
+    state.locScaler = await lr.json();
+    log('Localization scaler ✓', 'ok');
 
-    log('All scalers loaded ✓', 'ok');
-    setSysStatus('ok', 'SYSTEM READY');
-
-    // Load file list
+    setSys('ok', 'SYSTEM READY');
     await loadFileList();
     updateRunBtn();
 
   } catch (e) {
-    log('Init error: ' + e.message, 'err');
-    setSysStatus('err', 'INIT FAILED');
+    log('Init failed: ' + e.message, 'err');
+    setSys('err', 'INIT FAILED');
     console.error(e);
   }
 }
 
-// ==============================
-// SCALER TRANSFORM
-// ==============================
+// ─────────────────────────────────────────────
+// SCALER — StandardScaler transform
+// Supports keys: mean/scale  OR  mean_/scale_
+// ─────────────────────────────────────────────
 function scalerTransform(scaler, data) {
-  // Supports StandardScaler: {mean, scale} or {mean_, scale_}
-  // or MinMaxScaler: {data_min_, data_max_, scale_} etc.
-  const mean  = scaler.mean   ?? scaler.mean_   ?? null;
-  const scale = scaler.scale  ?? scaler.scale_  ?? null;
-
-  if (mean && scale) {
-    // StandardScaler
-    return data.map((row, ri) => row.map((v, ci) => {
+  const mean  = scaler.mean  ?? scaler.mean_  ?? null;
+  const scale = scaler.scale ?? scaler.scale_ ?? null;
+  if (!mean || !scale) {
+    log('Warning: scaler format unrecognised, using raw values', 'warn');
+    return data;
+  }
+  return data.map(row =>
+    row.map((v, ci) => {
       const m = Array.isArray(mean)  ? mean[ci]  : mean;
       const s = Array.isArray(scale) ? scale[ci] : scale;
       return (v - m) / (s || 1);
-    }));
-  }
-
-  // Passthrough if unknown format
-  log('Scaler format unrecognized — using raw values', 'warn');
-  return data;
+    })
+  );
 }
 
-// ==============================
-// CSI PARSE
-// ==============================
+// ─────────────────────────────────────────────
+// CSV PARSE
+// ─────────────────────────────────────────────
 function parseCSI(raw) {
   try {
-    const vals = String(raw)
-      .replace(/"/g, '').trim().split(',')
-      .map(x => parseFloat(x.trim()))
-      .filter(x => !isNaN(x));
-    return vals.length === CFG.CSI_LEN ? vals : null;
+    const vals = String(raw).replace(/"/g, '').trim()
+      .split(',').map(x => parseFloat(x.trim())).filter(x => !isNaN(x));
+    return vals.length === CSI_LEN ? vals : null;
   } catch { return null; }
 }
 
-// ==============================
-// FILE LIST FROM SERVER
-// ==============================
+// ─────────────────────────────────────────────
+// FILE LIST
+// ─────────────────────────────────────────────
 async function loadFileList() {
-  const listEl = document.getElementById('file-list');
+  const listEl  = document.getElementById('file-list');
   const emptyEl = document.getElementById('file-empty');
-
   try {
-    const res = await fetch('/list-tests');
-    if (!res.ok) throw new Error('Could not reach /list-tests');
+    const res  = await fetch('/list-tests');
     const data = await res.json();
-    const files = data.files || [];
-
-    // Remove loading placeholder
     if (emptyEl) emptyEl.remove();
-
-    if (files.length === 0) {
+    if (!data.files.length) {
       listEl.innerHTML = '<div class="file-empty">No CSV files in test_data/</div>';
       return;
     }
-
-    files.forEach(name => {
+    data.files.forEach(name => {
       const el = document.createElement('div');
       el.className = 'file-item';
       el.textContent = name;
-      el.addEventListener('click', () => selectServerFile(name, el));
+      el.onclick = () => {
+        document.querySelectorAll('.file-item').forEach(i => i.classList.remove('selected'));
+        el.classList.add('selected');
+        state.selectedFile = { type: 'server', name };
+        log('Selected: ' + name);
+        updateRunBtn();
+      };
       listEl.appendChild(el);
     });
-
   } catch (e) {
-    if (emptyEl) emptyEl.textContent = 'Server offline — upload CSV below';
-    log('Could not load file list: ' + e.message, 'warn');
+    if (emptyEl) emptyEl.textContent = 'Could not reach server — upload CSV below';
+    log('File list error: ' + e.message, 'warn');
   }
 }
 
-function selectServerFile(name, el) {
-  document.querySelectorAll('.file-item').forEach(i => i.classList.remove('selected'));
-  el.classList.add('selected');
-  state.selectedFile = { type: 'server', name };
-  log(`Selected: ${name}`);
-  updateRunBtn();
-}
-
-// ==============================
-// LOCAL CSV UPLOAD
-// ==============================
+// Local upload
 document.getElementById('csv-upload').addEventListener('change', e => {
   const file = e.target.files[0];
   if (!file) return;
   state.selectedFile = { type: 'local', name: file.name, file };
   document.querySelectorAll('.file-item').forEach(i => i.classList.remove('selected'));
-  log(`Local file: ${file.name}`, 'info');
+  log('Local file: ' + file.name, 'info');
   updateRunBtn();
 });
 
-// Drag & drop
 const uploadZone = document.getElementById('upload-zone');
-uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragover',  e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
 uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
 uploadZone.addEventListener('drop', e => {
-  e.preventDefault();
-  uploadZone.classList.remove('drag-over');
+  e.preventDefault(); uploadZone.classList.remove('drag-over');
   const file = e.dataTransfer.files[0];
-  if (file && file.name.endsWith('.csv')) {
+  if (file?.name.endsWith('.csv')) {
     state.selectedFile = { type: 'local', name: file.name, file };
     document.querySelectorAll('.file-item').forEach(i => i.classList.remove('selected'));
-    log(`Dropped: ${file.name}`, 'info');
+    log('Dropped: ' + file.name, 'info');
     updateRunBtn();
   }
 });
 
-// ==============================
-// RUN BUTTON STATE
-// ==============================
 function updateRunBtn() {
-  const btn = document.getElementById('run-btn');
-  const modelsReady = state.detModel && state.locModel && state.detScaler && state.locScaler;
-  btn.disabled = !modelsReady || !state.selectedFile || state.running;
+  const ready = state.detModel && state.locModel && state.detScaler && state.locScaler;
+  document.getElementById('run-btn').disabled = !ready || !state.selectedFile || state.running;
 }
 
-// ==============================
+// ─────────────────────────────────────────────
 // PROGRESS
-// ==============================
+// ─────────────────────────────────────────────
 function setProgress(pct, msg) {
   document.getElementById('prog-fill').style.width = pct + '%';
-  document.getElementById('prog-pct').textContent = Math.round(pct) + '%';
+  document.getElementById('prog-pct').textContent  = Math.round(pct) + '%';
   if (msg) document.getElementById('prog-msg').textContent = msg;
 }
-
-function showProgress(visible) {
-  document.getElementById('progress-wrap').classList.toggle('visible', visible);
+function showProgress(v) {
+  document.getElementById('progress-wrap').classList.toggle('visible', v);
 }
 
-// ==============================
+// ─────────────────────────────────────────────
 // MAIN ANALYSIS
-// ==============================
+// ─────────────────────────────────────────────
 document.getElementById('run-btn').addEventListener('click', runAnalysis);
 
 async function runAnalysis() {
   if (state.running || !state.selectedFile) return;
 
-  const WINDOW = parseInt(document.getElementById('cfg-window').value);
-  const STEP   = parseInt(document.getElementById('cfg-step').value);
-  const THRESH = parseFloat(document.getElementById('cfg-thresh').value);
-  const MINWET = parseInt(document.getElementById('cfg-minwet').value);
+  const WINDOW = +document.getElementById('cfg-window').value;
+  const STEP   = +document.getElementById('cfg-step').value;
+  const THRESH = +document.getElementById('cfg-thresh').value;
+  const MINWET = +document.getElementById('cfg-minwet').value;
 
-  // Update threshold tag
-  document.getElementById('thresh-tag').textContent = `THR ${THRESH.toFixed(2)}`;
+  document.getElementById('thresh-tag').textContent = 'THR ' + THRESH.toFixed(2);
 
   state.running = true;
   updateRunBtn();
@@ -1101,323 +557,220 @@ async function runAnalysis() {
   document.getElementById('run-btn-text').textContent = 'RUNNING…';
   showProgress(true);
   setProgress(0, 'Loading CSV…');
-
-  state.allProbs = [];
-  state.coords   = [];
+  state.allProbs = []; state.coords = [];
 
   try {
-    // 1. LOAD CSV
+    // 1. Load CSV text
     let csvText;
     if (state.selectedFile.type === 'server') {
-      const res = await fetch(`/test-data/${encodeURIComponent(state.selectedFile.name)}`);
-      if (!res.ok) throw new Error(`Could not fetch ${state.selectedFile.name}`);
+      const res = await fetch('/test-data/' + encodeURIComponent(state.selectedFile.name));
+      if (!res.ok) throw new Error(`Could not fetch ${state.selectedFile.name} (HTTP ${res.status})`);
       csvText = await res.text();
     } else {
       csvText = await state.selectedFile.file.text();
     }
 
-    // 2. PARSE
+    // 2. Parse
     setProgress(5, 'Parsing CSV…');
     const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
-    if (!parsed.data.length) throw new Error('CSV is empty');
+    const row0   = parsed.data[0];
+    const csiCol = row0 && Object.keys(row0).find(k => k.toLowerCase() === 'csi_data');
+    if (!csiCol) throw new Error('No csi_data column. Columns: ' + Object.keys(row0 || {}).join(', '));
 
-    // Find csi_data column (case-insensitive)
-    const row0 = parsed.data[0];
-    const csiCol = Object.keys(row0).find(k => k.toLowerCase() === 'csi_data');
-    if (!csiCol) throw new Error(`No 'csi_data' column. Found: ${Object.keys(row0).join(', ')}`);
-
-    const csiMatrix = parsed.data
-      .map(r => parseCSI(r[csiCol]))
-      .filter(Boolean);
-
-    if (csiMatrix.length < WINDOW) {
-      throw new Error(`Need ≥ ${WINDOW} valid rows; found ${csiMatrix.length}`);
-    }
+    const csiMatrix = parsed.data.map(r => parseCSI(r[csiCol])).filter(Boolean);
+    if (csiMatrix.length < WINDOW) throw new Error(`Need ≥${WINDOW} packets; got ${csiMatrix.length}`);
 
     log(`Parsed ${csiMatrix.length} CSI packets`, 'ok');
     document.getElementById('stat-packets').textContent = csiMatrix.length;
     setProgress(10, 'Running inference…');
 
-    // 3. SLIDING WINDOW INFERENCE
-    const totalWindows = Math.floor((csiMatrix.length - WINDOW) / STEP) + 1;
-    let processed = 0;
-    let wetWindows = 0;
+    // 3. Sliding window
+    const total = Math.floor((csiMatrix.length - WINDOW) / STEP) + 1;
+    let done = 0, wet = 0;
 
     for (let i = 0; i <= csiMatrix.length - WINDOW; i += STEP) {
-      const window = csiMatrix.slice(i, i + WINDOW); // shape [W, 384]
+      const win = csiMatrix.slice(i, i + WINDOW);
 
-      // --- DETECTION ---
-      const scaledDet = scalerTransform(state.detScaler, window);
-      const detTensor = tf.tensor3d([scaledDet]); // [1, W, 384]
-      const probTensor = state.detModel.predict(detTensor);
-      const prob = (await probTensor.data())[0];
-      tf.dispose([detTensor, probTensor]);
-
+      // Detection
+      const sdWin = scalerTransform(state.detScaler, win);
+      const dt = tf.tensor3d([sdWin]);
+      const pt = state.detModel.predict(dt);
+      const prob = (await pt.data())[0];
+      tf.dispose([dt, pt]);
       state.allProbs.push(prob);
 
-      // --- LOCALIZATION ---
+      // Localization
       if (prob > THRESH) {
-        wetWindows++;
-        const scaledLoc = scalerTransform(state.locScaler, window);
-        const locTensor = tf.tensor3d([scaledLoc]);
-        const xyTensor = state.locModel.predict(locTensor);
-        const xy = await xyTensor.data();
-        tf.dispose([locTensor, xyTensor]);
-        state.coords.push([xy[0], xy[1], i]); // [x, y, windowIndex]
+        wet++;
+        const slWin = scalerTransform(state.locScaler, win);
+        const lt = tf.tensor3d([slWin]);
+        const xyt = state.locModel.predict(lt);
+        const xy  = await xyt.data();
+        tf.dispose([lt, xyt]);
+        state.coords.push([xy[0], xy[1], i]);
       }
 
-      processed++;
-      const pct = 10 + (processed / totalWindows) * 85;
-      setProgress(pct, `Window ${processed}/${totalWindows} — wet: ${wetWindows}`);
-
-      // Yield to UI every 20 windows
-      if (processed % 20 === 0) await new Promise(r => setTimeout(r, 0));
+      done++;
+      setProgress(10 + (done / total) * 85, `Window ${done}/${total} — wet: ${wet}`);
+      if (done % 20 === 0) await new Promise(r => setTimeout(r, 0));
     }
 
     setProgress(100, 'Done!');
-    log(`Processed ${processed} windows`, 'ok');
-    log(`Wet windows: ${wetWindows} / Min required: ${MINWET}`, wetWindows >= MINWET ? 'warn' : 'ok');
+    log(`${done} windows processed`, 'ok');
+    log(`Wet: ${wet} / Required: ${MINWET}`, wet >= MINWET ? 'warn' : 'ok');
 
-    // 4. RENDER RESULTS
-    const isWet = wetWindows >= MINWET;
-    renderVerdict(isWet, processed, wetWindows, csiMatrix.length);
+    const isWet = wet >= MINWET;
+    renderVerdict(isWet, done, wet, csiMatrix.length);
     renderProbChart(state.allProbs, THRESH);
     renderHeatmap(state.coords);
     renderCoordTable(state.coords);
-
-    if (isWet) {
-      log('⚠ LEAK DETECTED', 'err');
-    } else {
-      log('✓ No leak detected', 'ok');
-    }
+    log(isWet ? '⚠ LEAK DETECTED' : '✓ No leak detected', isWet ? 'err' : 'ok');
 
   } catch (e) {
     log('Error: ' + e.message, 'err');
     console.error(e);
-    setProgress(0, 'Error');
   } finally {
     state.running = false;
     btn.classList.remove('running');
     document.getElementById('run-btn-text').textContent = 'RUN ANALYSIS';
     updateRunBtn();
-    setTimeout(() => showProgress(false), 2000);
+    setTimeout(() => showProgress(false), 2500);
   }
 }
 
-// ==============================
+// ─────────────────────────────────────────────
 // VERDICT
-// ==============================
-function renderVerdict(isWet, totalWindows, wetWindows, packets) {
+// ─────────────────────────────────────────────
+function renderVerdict(isWet, totalW, wetW, packets) {
   const card = document.getElementById('verdict-card');
-  const icon = document.getElementById('verdict-icon');
-  const main = document.getElementById('verdict-main');
-  const sub  = document.getElementById('verdict-sub');
-
   card.className = 'verdict-card ' + (isWet ? 'wet' : 'dry');
-  icon.textContent = isWet ? '⚠' : '✓';
-  main.textContent = isWet ? 'LEAK DETECTED' : 'NO LEAK FOUND';
-  sub.textContent  = isWet
-    ? `Moisture detected across ${wetWindows} windows — ${state.selectedFile.name}`
+  document.getElementById('verdict-icon').textContent = isWet ? '⚠' : '✓';
+  document.getElementById('verdict-main').textContent = isWet ? 'LEAK DETECTED' : 'NO LEAK FOUND';
+  document.getElementById('verdict-sub').textContent  = isWet
+    ? `Moisture confirmed across ${wetW} windows — ${state.selectedFile.name}`
     : `Signal is dry — ${state.selectedFile.name}`;
-
-  document.getElementById('stat-windows').textContent = totalWindows;
-  document.getElementById('stat-wet').textContent = wetWindows;
-  const ratio = totalWindows > 0 ? ((wetWindows / totalWindows) * 100).toFixed(1) + '%' : '—';
-  document.getElementById('stat-ratio').textContent = ratio;
+  document.getElementById('stat-windows').textContent = totalW;
+  document.getElementById('stat-wet').textContent     = wetW;
+  document.getElementById('stat-ratio').textContent   = totalW ? ((wetW/totalW)*100).toFixed(1)+'%' : '—';
   document.getElementById('stat-packets').textContent = packets;
 }
 
-// ==============================
-// PROBABILITY CHART (canvas)
-// ==============================
-function renderProbChart(probs, threshold) {
+// ─────────────────────────────────────────────
+// PROB CHART
+// ─────────────────────────────────────────────
+function renderProbChart(probs, thr) {
   const canvas = document.getElementById('prob-chart');
   const wrap   = canvas.parentElement;
   canvas.width  = wrap.offsetWidth || 600;
-  canvas.height = wrap.offsetHeight || 80;
+  canvas.height = 80;
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height;
-
   ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#0b0c0e'; ctx.fillRect(0, 0, W, H);
 
-  if (!probs.length) return;
-
-  // Background
-  ctx.fillStyle = '#0b0c0e';
-  ctx.fillRect(0, 0, W, H);
-
-  // Grid lines
-  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
-  ctx.lineWidth = 1;
+  // Grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.lineWidth = 1;
   for (let y = 0; y <= 4; y++) {
-    const yp = H - (y / 4) * H;
+    const yp = H - (y/4)*H;
     ctx.beginPath(); ctx.moveTo(0, yp); ctx.lineTo(W, yp); ctx.stroke();
   }
-
-  // Threshold line
-  const thY = H - threshold * H;
-  ctx.strokeStyle = 'rgba(255,179,0,0.6)';
-  ctx.setLineDash([4, 3]);
-  ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(0, thY); ctx.lineTo(W, thY); ctx.stroke();
+  // Threshold
+  const thY = H - thr*H;
+  ctx.strokeStyle='rgba(255,179,0,0.6)'; ctx.setLineDash([4,3]);
+  ctx.beginPath(); ctx.moveTo(0,thY); ctx.lineTo(W,thY); ctx.stroke();
   ctx.setLineDash([]);
 
-  // Fill under curve
-  const grad = ctx.createLinearGradient(0, 0, 0, H);
-  grad.addColorStop(0,   'rgba(0,229,255,0.25)');
-  grad.addColorStop(1,   'rgba(0,229,255,0.02)');
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.moveTo(0, H);
-  probs.forEach((p, i) => {
-    const x = (i / (probs.length - 1)) * W;
-    const y = H - p * H;
-    i === 0 ? ctx.lineTo(x, y) : ctx.lineTo(x, y);
-  });
-  ctx.lineTo(W, H);
-  ctx.closePath();
-  ctx.fill();
-
+  if (!probs.length) return;
+  // Fill
+  const g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'rgba(0,229,255,0.25)'); g.addColorStop(1,'rgba(0,229,255,0.02)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.moveTo(0, H);
+  probs.forEach((p,i) => ctx.lineTo((i/Math.max(probs.length-1,1))*W, H-p*H));
+  ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
   // Line
-  ctx.strokeStyle = '#00e5ff';
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle='#00e5ff'; ctx.lineWidth=1.5;
   ctx.beginPath();
-  probs.forEach((p, i) => {
-    const x = (i / Math.max(probs.length - 1, 1)) * W;
-    const y = H - p * H;
-    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  probs.forEach((p,i) => {
+    const x=(i/Math.max(probs.length-1,1))*W, y=H-p*H;
+    i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
   });
   ctx.stroke();
 }
 
-// ==============================
+// ─────────────────────────────────────────────
 // HEATMAP
-// ==============================
+// ─────────────────────────────────────────────
 function renderHeatmap(coords) {
   const canvas  = document.getElementById('heatmap');
   const overlay = document.getElementById('heatmap-overlay');
-  const countTag = document.getElementById('coord-count-tag');
+  document.getElementById('coord-count-tag').textContent = coords.length + ' coords';
 
-  countTag.textContent = coords.length + ' coords';
-
-  if (!coords.length) {
-    overlay.style.display = 'flex';
-    overlay.textContent = 'NO DETECTIONS';
-    return;
-  }
+  if (!coords.length) { overlay.style.display='flex'; overlay.textContent='NO DETECTIONS'; return; }
   overlay.style.display = 'none';
 
-  const W = canvas.width, H = canvas.height;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, W, H);
+  const W=canvas.width, H=canvas.height;
+  const ctx=canvas.getContext('2d');
+  ctx.fillStyle='#0b0c0e'; ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(255,255,255,0.04)'; ctx.lineWidth=1;
+  for(let x=0;x<=W;x+=60){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<=H;y+=60){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
 
-  // Background
-  ctx.fillStyle = '#0b0c0e';
-  ctx.fillRect(0, 0, W, H);
+  const xs=coords.map(c=>c[0]),ys=coords.map(c=>c[1]);
+  const xMin=Math.min(...xs),xMax=Math.max(...xs);
+  const yMin=Math.min(...ys),yMax=Math.max(...ys);
+  const pad=40;
+  const toC=(x,y)=>[
+    xMax===xMin ? W/2 : pad+((x-xMin)/(xMax-xMin))*(W-2*pad),
+    yMax===yMin ? H/2 : pad+((y-yMin)/(yMax-yMin))*(H-2*pad)
+  ];
 
-  // Grid
-  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
-  ctx.lineWidth = 1;
-  for (let x = 0; x <= W; x += 60) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
-  }
-  for (let y = 0; y <= H; y += 60) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-  }
-
-  // Determine data range
-  const xs = coords.map(c => c[0]);
-  const ys = coords.map(c => c[1]);
-  const xMin = Math.min(...xs), xMax = Math.max(...xs);
-  const yMin = Math.min(...ys), yMax = Math.max(...ys);
-  const pad = 40;
-
-  function toCanvas(x, y) {
-    const cx = xMax === xMin
-      ? W / 2
-      : pad + ((x - xMin) / (xMax - xMin)) * (W - 2 * pad);
-    const cy = yMax === yMin
-      ? H / 2
-      : pad + ((y - yMin) / (yMax - yMin)) * (H - 2 * pad);
-    return [cx, cy];
-  }
-
-  // Density map
-  const density = new Float32Array(W * H);
-  const radius = Math.max(30, Math.min(W, H) / 8);
-  coords.forEach(([x, y]) => {
-    const [cx, cy] = toCanvas(x, y);
-    const r2 = radius * radius;
-    for (let py = Math.max(0, cy - radius); py < Math.min(H, cy + radius); py++) {
-      for (let px = Math.max(0, cx - radius); px < Math.min(W, cx + radius); px++) {
-        const d2 = (px - cx) ** 2 + (py - cy) ** 2;
-        if (d2 < r2) {
-          density[Math.round(py) * W + Math.round(px)] += 1 - d2 / r2;
-        }
+  const density=new Float32Array(W*H);
+  const R=Math.max(30,Math.min(W,H)/8);
+  coords.forEach(([x,y])=>{
+    const [cx,cy]=toC(x,y);
+    for(let py=Math.max(0,cy-R);py<Math.min(H,cy+R);py++){
+      for(let px=Math.max(0,cx-R);px<Math.min(W,cx+R);px++){
+        const d2=(px-cx)**2+(py-cy)**2;
+        if(d2<R*R) density[Math.round(py)*W+Math.round(px)]+=1-d2/(R*R);
       }
     }
   });
-
-  const dMax = Math.max(...density);
-  const imageData = ctx.createImageData(W, H);
-  for (let i = 0; i < density.length; i++) {
-    const t = dMax > 0 ? density[i] / dMax : 0;
-    // Colour: dark → cyan → white
-    const r = Math.round(t < 0.5 ? 0 : (t - 0.5) * 2 * 255);
-    const g = Math.round(t < 0.5 ? t * 2 * 229 : 229 + (t - 0.5) * 2 * 26);
-    const b = Math.round(t < 0.5 ? t * 2 * 255 : 255);
-    const a = t > 0.01 ? Math.round(t * 220 + 35) : 0;
-    imageData.data[i * 4]     = r;
-    imageData.data[i * 4 + 1] = g;
-    imageData.data[i * 4 + 2] = b;
-    imageData.data[i * 4 + 3] = a;
+  const dMax=Math.max(...density);
+  const img=ctx.createImageData(W,H);
+  for(let i=0;i<density.length;i++){
+    const t=dMax>0?density[i]/dMax:0;
+    img.data[i*4]  =Math.round(t<0.5?0:(t-.5)*2*255);
+    img.data[i*4+1]=Math.round(t<0.5?t*2*229:229+(t-.5)*2*26);
+    img.data[i*4+2]=Math.round(t<0.5?t*2*255:255);
+    img.data[i*4+3]=t>0.01?Math.round(t*220+35):0;
   }
-  ctx.putImageData(imageData, 0, 0);
-
-  // Dot markers
-  coords.forEach(([x, y]) => {
-    const [cx, cy] = toCanvas(x, y);
-    ctx.beginPath();
-    ctx.arc(cx, cy, 3, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.fill();
+  ctx.putImageData(img,0,0);
+  coords.forEach(([x,y])=>{
+    const [cx,cy]=toC(x,y);
+    ctx.beginPath();ctx.arc(cx,cy,3,0,Math.PI*2);
+    ctx.fillStyle='rgba(255,255,255,0.7)';ctx.fill();
   });
-
-  // Axis labels
-  ctx.font = '10px Share Tech Mono, monospace';
-  ctx.fillStyle = 'rgba(255,255,255,0.25)';
-  ctx.fillText(`X: ${xMin.toFixed(2)}m`, 6, H - 6);
-  ctx.fillText(`X: ${xMax.toFixed(2)}m`, W - 70, H - 6);
-  ctx.fillText(`Y: ${yMin.toFixed(2)}m`, 6, H - 18);
-  ctx.fillText(`Y: ${yMax.toFixed(2)}m`, 6, 14);
+  ctx.font='10px Share Tech Mono,monospace'; ctx.fillStyle='rgba(255,255,255,0.25)';
+  ctx.fillText(`X: ${xMin.toFixed(2)}m`,6,H-6);
+  ctx.fillText(`X: ${xMax.toFixed(2)}m`,W-70,H-6);
+  ctx.fillText(`Y: ${yMin.toFixed(2)}m`,6,H-18);
+  ctx.fillText(`Y: ${yMax.toFixed(2)}m`,6,14);
 }
 
-// ==============================
+// ─────────────────────────────────────────────
 // COORD TABLE
-// ==============================
+// ─────────────────────────────────────────────
 function renderCoordTable(coords) {
-  const tbody = document.getElementById('coord-tbody');
-  if (!coords.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="4">No wet windows detected</td></tr>';
-    return;
-  }
-  tbody.innerHTML = coords.slice(0, 200).map(([x, y, wi], i) => `
-    <tr>
-      <td>${i + 1}</td>
-      <td class="x-val">${x.toFixed(4)}</td>
-      <td class="y-val">${y.toFixed(4)}</td>
-      <td>${wi}</td>
-    </tr>
+  const tbody=document.getElementById('coord-tbody');
+  if(!coords.length){tbody.innerHTML='<tr class="empty-row"><td colspan="4">No wet windows detected</td></tr>';return;}
+  tbody.innerHTML=coords.slice(0,200).map(([x,y,wi],i)=>`
+    <tr><td>${i+1}</td><td class="x-val">${x.toFixed(4)}</td><td class="y-val">${y.toFixed(4)}</td><td>${wi}</td></tr>
   `).join('');
-  if (coords.length > 200) {
-    tbody.innerHTML += `<tr class="empty-row"><td colspan="4">… ${coords.length - 200} more rows</td></tr>`;
-  }
+  if(coords.length>200) tbody.innerHTML+=`<tr class="empty-row"><td colspan="4">…${coords.length-200} more</td></tr>`;
 }
 
-// ==============================
-// BOOT
-// ==============================
-window.addEventListener('load', initSystem);
+window.addEventListener('load', init);
 </script>
 </body>
 </html>
