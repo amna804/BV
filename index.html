@@ -1,1569 +1,1423 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
-    <title>Wall Seepage Detector</title>
-    <style>
-      :root {
-        --cyan: #00e5ff;
-        --cyan-dim: #00b8cc;
-        --bg-dark: #020d12;
-        --bg-panel: #041820;
-        --bg-card: #0a2535;
-        --border: #0d4a6b;
-        --text: #cce8f4;
-        --text-dim: #6a9ab5;
-        --danger: #ff4444;
-        --warning: #ffaa00;
-        --success: #00e676;
-        --font: "Courier New", monospace;
-      }
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WiFi Leak Detection System</title>
 
-      * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
+<!-- TensorFlow.js -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js"></script>
+<!-- PapaParse for CSV -->
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<!-- Google Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700;900&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet" />
 
-      body {
-        background: var(--bg-dark);
-        color: var(--text);
-        font-family: var(--font);
-        height: 100dvh;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-      }
+<style>
+/* ============================
+   DESIGN SYSTEM — INDUSTRIAL
+   ============================ */
+:root {
+  --bg:        #0b0c0e;
+  --surface:   #111318;
+  --panel:     #16191f;
+  --border:    #242830;
+  --border-hi: #343b47;
 
-      nav {
-        display: flex;
-        border-bottom: 1px solid var(--border);
-        background: var(--bg-panel);
-        flex-shrink: 0;
-      }
-      nav button {
-        flex: 1;
-        padding: 14px 8px;
-        background: none;
-        border: none;
-        color: var(--text-dim);
-        font-family: var(--font);
-        font-size: 11px;
-        letter-spacing: 1px;
-        text-transform: uppercase;
-        cursor: pointer;
-        border-bottom: 2px solid transparent;
-        transition:
-          color 0.2s,
-          border-color 0.2s;
-      }
-      nav button.active {
-        color: var(--cyan);
-        border-bottom-color: var(--cyan);
-      }
+  --text:      #d4dae6;
+  --text-muted:#6b7385;
+  --text-dim:  #3d4455;
 
-      .view {
-        display: none;
-        flex: 1;
-        flex-direction: column;
-        overflow: hidden;
-      }
-      .view.active {
-        display: flex;
-      }
+  --cyan:      #00e5ff;
+  --cyan-dim:  rgba(0,229,255,0.12);
+  --cyan-glow: rgba(0,229,255,0.35);
 
-      /* ── AR VIEW ── */
-      #ar-view {
-        position: relative;
-      }
+  --amber:     #ffb300;
+  --amber-dim: rgba(255,179,0,0.12);
 
-      #camera-container {
-        flex: 1;
-        position: relative;
-        background: #000;
-        overflow: hidden;
-      }
+  --red:       #ff3b3b;
+  --red-dim:   rgba(255,59,59,0.12);
 
-      #camera-feed {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        display: block;
-      }
+  --green:     #00e676;
+  --green-dim: rgba(0,230,118,0.12);
 
-      #scan-overlay {
-        position: absolute;
-        inset: 0;
-        pointer-events: none;
-        display: none;
-      }
-      #scan-overlay.active {
-        display: block;
-      }
+  --mono: 'Share Tech Mono', monospace;
+  --cond: 'Barlow Condensed', sans-serif;
+  --body: 'Barlow', sans-serif;
 
-      .scan-line {
-        position: absolute;
-        left: 0;
-        right: 0;
-        height: 2px;
-        background: linear-gradient(
-          90deg,
-          transparent,
-          var(--cyan),
-          transparent
-        );
-        animation: scanDown 2.5s linear infinite;
-        box-shadow: 0 0 8px var(--cyan);
-      }
-      @keyframes scanDown {
-        0% {
-          top: 0;
-        }
-        100% {
-          top: 100%;
-        }
-      }
+  --radius: 2px;
+  --transition: 0.18s ease;
+}
 
-      .corner {
-        position: absolute;
-        width: 24px;
-        height: 24px;
-        border-color: var(--cyan);
-        border-style: solid;
-      }
-      .corner.tl {
-        top: 16px;
-        left: 16px;
-        border-width: 2px 0 0 2px;
-      }
-      .corner.tr {
-        top: 16px;
-        right: 16px;
-        border-width: 2px 2px 0 0;
-      }
-      .corner.bl {
-        bottom: 16px;
-        left: 16px;
-        border-width: 0 0 2px 2px;
-      }
-      .corner.br {
-        bottom: 16px;
-        right: 16px;
-        border-width: 0 2px 2px 0;
-      }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-      /* ── AR WALL GRID OVERLAY ── */
-      #ar-grid {
-        position: absolute;
-        inset: 0;
-        pointer-events: none;
-        display: none;
-      }
-      #ar-grid.active {
-        display: block;
-      }
+html { font-size: 16px; }
 
-      #ar-grid svg {
-        width: 100%;
-        height: 100%;
-      }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--body);
+  font-weight: 300;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
 
-      #file-picker-panel {
-        display: none;
-      }
-      #file-picker-panel:not(.hidden) {
-        display: flex;
-      }
+/* ============================
+   BACKGROUND GRID TEXTURE
+   ============================ */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,229,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,229,255,0.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
 
-      /* ── MODE SELECTION MODAL ── */
-      #mode-modal {
-        position: absolute;
-        inset: 0;
-        background: rgba(2, 13, 18, 0.95);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 16px;
-        padding: 24px;
-        z-index: 10;
-      }
-      #mode-modal.hidden {
-        display: none;
-      }
+/* ============================
+   LAYOUT
+   ============================ */
+.shell {
+  position: relative;
+  z-index: 1;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px 80px;
+}
 
-      .modal-title {
-        font-size: 13px;
-        letter-spacing: 3px;
-        text-transform: uppercase;
-        color: var(--cyan);
-        text-align: center;
-        margin-bottom: 4px;
-      }
-      .modal-sub {
-        font-size: 10px;
-        color: var(--text-dim);
-        text-align: center;
-        letter-spacing: 1px;
-        margin-bottom: 8px;
-      }
+/* ============================
+   HEADER
+   ============================ */
+header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 36px 0 28px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 36px;
+  gap: 20px;
+  flex-wrap: wrap;
+}
 
-      .mode-btn {
-        width: 100%;
-        max-width: 320px;
-        background: var(--bg-card);
-        border: 1px solid var(--border);
-        color: var(--text);
-        font-family: var(--font);
-        font-size: 11px;
-        letter-spacing: 1px;
-        text-transform: uppercase;
-        padding: 18px 16px;
-        cursor: pointer;
-        text-align: left;
-        transition:
-          border-color 0.2s,
-          background 0.2s;
-        border-radius: 3px;
-      }
-      .mode-btn:hover {
-        border-color: var(--cyan);
-        background: rgba(0, 229, 255, 0.06);
-      }
-      .mode-btn .mode-num {
-        color: var(--cyan);
-        font-size: 18px;
-        display: block;
-        margin-bottom: 6px;
-      }
-      .mode-btn .mode-label {
-        color: var(--text);
-        display: block;
-      }
-      .mode-btn .mode-desc {
-        color: var(--text-dim);
-        font-size: 9px;
-        display: block;
-        margin-top: 4px;
-        line-height: 1.5;
-      }
-      .mode-btn.disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
-        pointer-events: none;
-      }
+.logo-block {}
+.logo-tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--cyan);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.logo-title {
+  font-family: var(--cond);
+  font-size: 42px;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  color: var(--text);
+  text-transform: uppercase;
+}
+.logo-title span { color: var(--cyan); }
 
-      /* ── UPLOAD PANEL ── */
-      #upload-panel {
-        position: absolute;
-        inset: 0;
-        background: rgba(2, 13, 18, 0.96);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 16px;
-        padding: 24px;
-        z-index: 10;
-      }
-      #upload-panel.hidden {
-        display: none;
-      }
+.header-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+}
+.status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  transition: var(--transition);
+}
+.status-dot.ok { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.status-dot.err { background: var(--red); box-shadow: 0 0 8px var(--red); }
+.status-dot.loading {
+  background: var(--amber);
+  animation: pulse 1s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
 
-      .upload-box {
-        width: 100%;
-        max-width: 320px;
-        border: 2px dashed var(--border);
-        border-radius: 4px;
-        padding: 32px 20px;
-        text-align: center;
-        color: var(--text-dim);
-        font-size: 11px;
-        letter-spacing: 1px;
-        cursor: pointer;
-        transition: border-color 0.2s;
-      }
-      .upload-box:hover {
-        border-color: var(--cyan);
-      }
-      .upload-box .upload-icon {
-        font-size: 36px;
-        margin-bottom: 12px;
-        opacity: 0.5;
-      }
-      .upload-box input[type="file"] {
-        display: none;
-      }
+/* ============================
+   MAIN GRID
+   ============================ */
+.main-grid {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 20px;
+}
 
-      .upload-info {
-        font-size: 10px;
-        color: var(--text-dim);
-        text-align: center;
-        line-height: 1.7;
-        max-width: 300px;
-      }
-      .upload-info span {
-        color: var(--cyan);
-      }
+@media (max-width: 900px) {
+  .main-grid { grid-template-columns: 1fr; }
+}
 
-      #selected-file {
-        font-size: 11px;
-        color: var(--success);
-        text-align: center;
-        max-width: 300px;
-        word-break: break-all;
-        display: none;
-      }
+/* ============================
+   PANELS
+   ============================ */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
 
-      .panel-btn {
-        padding: 14px 32px;
-        background: var(--bg-card);
-        border: 1px solid var(--cyan);
-        color: var(--cyan);
-        font-family: var(--font);
-        font-size: 11px;
-        letter-spacing: 2px;
-        text-transform: uppercase;
-        cursor: pointer;
-        border-radius: 2px;
-        transition: background 0.2s;
-      }
-      .panel-btn:hover {
-        background: rgba(0, 229, 255, 0.12);
-      }
-      .panel-btn:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
-      }
-      .panel-btn.back {
-        background: none;
-        border-color: var(--border);
-        color: var(--text-dim);
-        font-size: 10px;
-        padding: 10px 24px;
-      }
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+.panel-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  flex: 1;
+}
+.panel-icon {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--border-hi);
+}
 
-      /* ── ANALYSIS PROGRESS PANEL ── */
-      #analysis-panel {
-        position: absolute;
-        inset: 0;
-        background: rgba(2, 13, 18, 0.96);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 12px;
-        padding: 24px;
-        z-index: 10;
-      }
-      #analysis-panel.hidden {
-        display: none;
-      }
+.panel-body { padding: 18px; }
 
-      .progress-title {
-        font-size: 12px;
-        letter-spacing: 3px;
-        color: var(--cyan);
-        text-transform: uppercase;
-      }
+/* ============================
+   SECTION LABEL
+   ============================ */
+.section-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
 
-      .progress-track {
-        width: 100%;
-        max-width: 300px;
-        height: 4px;
-        background: rgba(255, 255, 255, 0.05);
-        border-radius: 2px;
-        overflow: hidden;
-      }
-      .progress-fill {
-        height: 100%;
-        background: var(--cyan);
-        border-radius: 2px;
-        width: 0%;
-        transition: width 0.3s ease;
-        box-shadow: 0 0 6px var(--cyan);
-      }
+/* ============================
+   FILE SELECTOR
+   ============================ */
+.file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 300px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-hi) transparent;
+}
 
-      .progress-log {
-        width: 100%;
-        max-width: 300px;
-        font-size: 10px;
-        color: var(--text-dim);
-        line-height: 1.8;
-        text-align: left;
-        max-height: 120px;
-        overflow-y: auto;
-      }
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: var(--transition);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  background: transparent;
+  word-break: break-all;
+}
+.file-item:hover {
+  border-color: var(--border-hi);
+  color: var(--text);
+  background: var(--panel);
+}
+.file-item.selected {
+  border-color: var(--cyan);
+  color: var(--cyan);
+  background: var(--cyan-dim);
+}
+.file-item::before {
+  content: '▸';
+  font-size: 9px;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+.file-item.selected::before { opacity: 1; }
 
-      /* ── STATUS BAR ── */
-      #status-bar {
-        background: var(--bg-panel);
-        border-top: 1px solid var(--border);
-        padding: 8px 12px;
-        font-size: 10px;
-        color: var(--text-dim);
-        letter-spacing: 0.5px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-      #status-dot {
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        background: var(--text-dim);
-        flex-shrink: 0;
-        transition: background 0.3s;
-      }
-      #status-dot.active {
-        background: var(--success);
-        box-shadow: 0 0 6px var(--success);
-        animation: pulse 1.5s infinite;
-      }
-      #status-dot.scanning {
-        background: var(--cyan);
-        box-shadow: 0 0 6px var(--cyan);
-        animation: pulse 1s infinite;
-      }
-      @keyframes pulse {
-        0%,
-        100% {
-          opacity: 1;
-        }
-        50% {
-          opacity: 0.4;
-        }
-      }
+.file-empty {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  padding: 20px 0;
+  text-align: center;
+}
 
-      /* ── AR CONTROLS ── */
-      #ar-controls {
-        display: flex;
-        gap: 0;
-        flex-shrink: 0;
-        border-top: 1px solid var(--border);
-      }
-      #ar-controls button {
-        flex: 1;
-        padding: 16px 10px;
-        background: var(--bg-panel);
-        border: none;
-        border-right: 1px solid var(--border);
-        color: var(--cyan);
-        font-family: var(--font);
-        font-size: 11px;
-        letter-spacing: 1px;
-        text-transform: uppercase;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
-        transition: background 0.2s;
-        min-height: 52px;
-        -webkit-tap-highlight-color: transparent;
-      }
-      #ar-controls button:last-child {
-        border-right: none;
-      }
-      #ar-controls button:active,
-      #ar-controls button.running {
-        background: rgba(0, 229, 255, 0.1);
-      }
-      #ar-controls button.stop-mode {
-        color: var(--danger);
-      }
-      #ar-controls button:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
-      }
-      .btn-icon {
-        font-size: 14px;
-      }
+/* Upload zone */
+.upload-zone {
+  margin-top: 16px;
+  border: 1px dashed var(--border-hi);
+  border-radius: var(--radius);
+  padding: 20px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.upload-zone:hover, .upload-zone.drag-over {
+  border-color: var(--cyan);
+  background: var(--cyan-dim);
+}
+.upload-zone input { display: none; }
+.upload-zone-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.upload-zone:hover .upload-zone-label { color: var(--cyan); }
 
-      /* ── NO CAMERA ── */
-      #no-camera {
-        position: absolute;
-        inset: 0;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 12px;
-        background: #000;
-        color: var(--text-dim);
-        font-size: 12px;
-        text-align: center;
-        padding: 20px;
-      }
-      #no-camera .cam-icon {
-        font-size: 48px;
-        opacity: 0.3;
-      }
+/* ============================
+   CONFIG ROW
+   ============================ */
+.config-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 16px;
+}
 
-      /* ── RESULTS VIEW ── */
-      #results-view {
-        overflow-y: auto;
-        padding: 16px;
-        gap: 12px;
-      }
-      .result-header {
-        font-size: 10px;
-        letter-spacing: 2px;
-        color: var(--text-dim);
-        text-transform: uppercase;
-        margin-bottom: 4px;
-        padding-bottom: 8px;
-        border-bottom: 1px solid var(--border);
-      }
+.config-field label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 5px;
+}
+.config-field input {
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 8px 10px;
+  outline: none;
+  transition: var(--transition);
+}
+.config-field input:focus {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 2px var(--cyan-dim);
+}
 
-      .no-results {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-        color: var(--text-dim);
-        font-size: 12px;
-        text-align: center;
-        padding: 40px 20px;
-      }
-      .no-results .icon {
-        font-size: 40px;
-        opacity: 0.25;
-      }
+/* ============================
+   RUN BUTTON
+   ============================ */
+.run-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  margin-top: 18px;
+  padding: 14px 20px;
+  background: var(--cyan);
+  color: var(--bg);
+  border: none;
+  border-radius: var(--radius);
+  font-family: var(--cond);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: var(--transition);
+  position: relative;
+  overflow: hidden;
+}
+.run-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: white;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.run-btn:hover::after { opacity: 0.08; }
+.run-btn:active { transform: scale(0.99); }
+.run-btn:disabled {
+  background: var(--border-hi);
+  color: var(--text-dim);
+  cursor: not-allowed;
+}
+.run-btn:disabled::after { display: none; }
 
-      .result-card {
-        background: var(--bg-card);
-        border: 1px solid var(--border);
-        border-radius: 4px;
-        padding: 14px;
-        margin-bottom: 10px;
-      }
-      .result-card-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 10px;
-      }
-      .result-label {
-        font-size: 12px;
-        letter-spacing: 1px;
-        text-transform: uppercase;
-      }
-      .severity-badge {
-        font-size: 9px;
-        padding: 3px 8px;
-        border-radius: 2px;
-        letter-spacing: 1px;
-        text-transform: uppercase;
-      }
-      .severity-low {
-        background: rgba(0, 230, 118, 0.15);
-        color: var(--success);
-        border: 1px solid rgba(0, 230, 118, 0.3);
-      }
-      .severity-med {
-        background: rgba(255, 170, 0, 0.15);
-        color: var(--warning);
-        border: 1px solid rgba(255, 170, 0, 0.3);
-      }
-      .severity-high {
-        background: rgba(255, 68, 68, 0.15);
-        color: var(--danger);
-        border: 1px solid rgba(255, 68, 68, 0.3);
-      }
+.btn-spinner {
+  width: 14px; height: 14px;
+  border: 2px solid rgba(0,0,0,0.3);
+  border-top-color: var(--bg);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  display: none;
+}
+.run-btn.running .btn-spinner { display: block; }
+@keyframes spin { to { transform: rotate(360deg); } }
 
-      .result-bars {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-      }
-      .bar-row {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-      }
-      .bar-label {
-        display: flex;
-        justify-content: space-between;
-        font-size: 10px;
-        color: var(--text-dim);
-      }
-      .bar-track {
-        height: 4px;
-        background: rgba(255, 255, 255, 0.05);
-        border-radius: 2px;
-        overflow: hidden;
-      }
-      .bar-fill {
-        height: 100%;
-        border-radius: 2px;
-        transition: width 1s ease;
-      }
-      .bar-fill.cyan {
-        background: var(--cyan);
-      }
-      .bar-fill.warning {
-        background: var(--warning);
-      }
-      .bar-fill.danger {
-        background: var(--danger);
-      }
-      .bar-fill.success {
-        background: var(--success);
-      }
-      .scan-time {
-        font-size: 9px;
-        color: var(--text-dim);
-        margin-top: 8px;
-        text-align: right;
-      }
-      .summary-card {
-        background: rgba(0, 229, 255, 0.05);
-        border: 1px solid rgba(0, 229, 255, 0.2);
-        border-radius: 4px;
-        padding: 12px;
-        margin-bottom: 10px;
-        font-size: 11px;
-        color: var(--text-dim);
-        line-height: 1.6;
-      }
-      .summary-card strong {
-        color: var(--cyan);
-        font-weight: normal;
-      }
+/* ============================
+   PROGRESS BAR
+   ============================ */
+.progress-wrap {
+  margin-top: 16px;
+  display: none;
+}
+.progress-wrap.visible { display: block; }
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.progress-track {
+  height: 3px;
+  background: var(--border);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--cyan);
+  border-radius: 99px;
+  width: 0%;
+  transition: width 0.3s ease;
+  box-shadow: 0 0 8px var(--cyan-glow);
+}
 
-      /* ── WALL MAP RESULT ── */
-      #wall-map-container {
-        background: var(--bg-card);
-        border: 1px solid var(--border);
-        border-radius: 4px;
-        padding: 14px;
-        margin-bottom: 10px;
-      }
-      .wall-map-title {
-        font-size: 10px;
-        letter-spacing: 2px;
-        color: var(--cyan);
-        text-transform: uppercase;
-        margin-bottom: 12px;
-      }
-      #wall-map-svg {
-        width: 100%;
-        max-width: 340px;
-        display: block;
-        margin: 0 auto;
-      }
+/* ============================
+   LOG CONSOLE
+   ============================ */
+.log-console {
+  margin-top: 16px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.7;
+  max-height: 140px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-hi) transparent;
+}
+.log-line { color: var(--text-muted); }
+.log-line.info { color: var(--cyan); }
+.log-line.warn { color: var(--amber); }
+.log-line.err  { color: var(--red); }
+.log-line.ok   { color: var(--green); }
+.log-prefix { color: var(--text-dim); margin-right: 6px; }
 
-      /* ── CSI VIEW ── */
-      #csi-view {
-        overflow-y: auto;
-        padding: 16px;
-      }
-      .csi-section {
-        margin-bottom: 20px;
-      }
-      .csi-title {
-        font-size: 10px;
-        letter-spacing: 2px;
-        color: var(--cyan);
-        text-transform: uppercase;
-        margin-bottom: 10px;
-      }
-      .csi-row {
-        display: flex;
-        justify-content: space-between;
-        font-size: 11px;
-        padding: 6px 0;
-        border-bottom: 1px solid rgba(13, 74, 107, 0.5);
-        color: var(--text-dim);
-      }
-      .csi-row span:last-child {
-        color: var(--text);
-      }
+/* ============================
+   RIGHT COLUMN
+   ============================ */
+.right-col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
 
-      ::-webkit-scrollbar {
-        width: 4px;
-      }
-      ::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: var(--border);
-        border-radius: 2px;
-      }
+/* ============================
+   VERDICT CARD
+   ============================ */
+.verdict-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: var(--transition);
+}
+.verdict-card.wet {
+  border-color: var(--red);
+  box-shadow: 0 0 30px rgba(255,59,59,0.08), inset 0 0 40px rgba(255,59,59,0.03);
+}
+.verdict-card.dry {
+  border-color: var(--green);
+  box-shadow: 0 0 30px rgba(0,230,118,0.08), inset 0 0 40px rgba(0,230,118,0.03);
+}
 
-      @media (max-width: 480px) {
-        nav button {
-          font-size: 9px;
-          padding: 12px 4px;
-        }
-        #ar-controls button {
-          font-size: 10px;
-          padding: 14px 6px;
-        }
-      }
-    </style>
-  </head>
-  <body>
-    <!-- NAV -->
-    <nav>
-      <button class="active" onclick="switchView('ar')">AR View</button>
-      <button onclick="switchView('results')">Results</button>
-      <button onclick="switchView('csi')">CSI / Info</button>
-    </nav>
+.verdict-inner {
+  padding: 28px 28px 24px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
 
-    <!-- ══ AR VIEW ══ -->
-    <div id="ar-view" class="view active">
-      <div id="camera-container">
-        <!-- No camera placeholder -->
-        <div id="no-camera">
-          <div class="cam-icon">📷</div>
-          <div>Camera not active</div>
-          <div style="font-size: 10px; color: #345a6e">
-            Press START AR CAMERA below
-          </div>
-        </div>
+.verdict-icon {
+  font-size: 52px;
+  line-height: 1;
+  filter: drop-shadow(0 0 16px currentColor);
+  transition: var(--transition);
+}
+.verdict-card.wet  .verdict-icon { color: var(--red); }
+.verdict-card.dry  .verdict-icon { color: var(--green); }
+.verdict-card.idle .verdict-icon { color: var(--text-dim); }
 
-        <!-- Camera feed -->
-        <video
-          id="camera-feed"
-          autoplay
-          playsinline
-          muted
-          style="display: none"
-        ></video>
+.verdict-text {}
+.verdict-main {
+  font-family: var(--cond);
+  font-size: 36px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+.verdict-card.wet  .verdict-main { color: var(--red); }
+.verdict-card.dry  .verdict-main { color: var(--green); }
+.verdict-card.idle .verdict-main { color: var(--text-dim); }
 
-        <!-- Scan overlay -->
-        <div id="scan-overlay">
-          <div class="scan-line"></div>
-          <div class="corner tl"></div>
-          <div class="corner tr"></div>
-          <div class="corner bl"></div>
-          <div class="corner br"></div>
-        </div>
+.verdict-sub {
+  font-family: var(--body);
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 5px;
+  font-weight: 300;
+}
 
-        <!-- AR Wall Grid Overlay (shown after scan) -->
-        <div id="ar-grid">
-          <!-- SVG grid drawn by JS -->
-        </div>
+/* STATS ROW */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-top: 1px solid var(--border);
+}
+.stat-cell {
+  padding: 14px 18px;
+  border-right: 1px solid var(--border);
+}
+.stat-cell:last-child { border-right: none; }
+.stat-val {
+  font-family: var(--mono);
+  font-size: 22px;
+  color: var(--text);
+  line-height: 1;
+}
+.stat-lbl {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-top: 4px;
+}
 
-        <!-- ── STEP 1: MODE SELECTION MODAL ── -->
-        <div id="mode-modal" class="hidden">
-          <div class="modal-title">Select Scan Mode</div>
-          <div class="modal-sub">Choose how you want to test the wall</div>
+/* ============================
+   HEATMAP CANVAS
+   ============================ */
+.heatmap-panel {}
+.heatmap-wrap {
+  position: relative;
+  background: var(--bg);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+canvas#heatmap {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.heatmap-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim);
+  letter-spacing: 0.1em;
+  pointer-events: none;
+}
 
-          <button class="mode-btn" onclick="selectMode(1)">
-            <span class="mode-num">01</span>
-            <span class="mode-label">Test with Pre-Collected Data</span>
-            <span class="mode-desc"
-              >Upload a CSV file collected earlier from your WiFi-CSI sensor.
-              The model will analyse and mark seepage on the wall grid.</span
-            >
-          </button>
+/* Colorbar */
+.colorbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 0 4px;
+}
+.colorbar-track {
+  flex: 1;
+  height: 6px;
+  border-radius: 99px;
+  background: linear-gradient(to right,
+    #0b0c0e 0%,
+    #00334d 20%,
+    #0077a0 50%,
+    #00c8ff 75%,
+    #ffffff 100%
+  );
+}
+.colorbar-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
 
-          <button class="mode-btn disabled">
-            <span class="mode-num" style="color: var(--text-dim)">02</span>
-            <span class="mode-label" style="color: var(--text-dim)"
-              >Real-Time Data Collection</span
-            >
-            <span class="mode-desc"
-              >Collect CSI data live from the ESP32 sensor and run detection in
-              real-time. (Coming Soon)</span
-            >
-          </button>
+/* ============================
+   PROB CHART
+   ============================ */
+.prob-chart-wrap {
+  position: relative;
+  height: 80px;
+}
+canvas#prob-chart {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.threshold-label {
+  position: absolute;
+  right: 0;
+  top: 0;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--amber);
+  letter-spacing: 0.08em;
+  padding: 2px 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+}
 
-          <button class="panel-btn back" onclick="cancelModal()">
-            ← CANCEL
-          </button>
-        </div>
+/* ============================
+   COORD TABLE
+   ============================ */
+.coord-table-wrap {
+  max-height: 220px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-hi) transparent;
+}
+table.coord-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.coord-table thead th {
+  padding: 6px 12px;
+  text-align: left;
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  position: sticky;
+  top: 0;
+}
+.coord-table tbody td {
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+}
+.coord-table tbody tr:last-child td { border-bottom: none; }
+.coord-table tbody tr:hover td { color: var(--text); background: var(--panel); }
+.coord-table .x-val { color: var(--cyan); }
+.coord-table .y-val { color: var(--amber); }
+.coord-table .empty-row td {
+  text-align: center;
+  color: var(--text-dim);
+  padding: 24px 0;
+}
 
-        <!-- ── STEP 1B: FILE PICKER (auto-loaded from test_data/) ── -->
-        <div id="file-picker-panel" class="hidden" style="position:absolute;inset:0;background:rgba(2,13,18,0.95);flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;z-index:10;">
-          <div class="modal-title">Select Test Dataset</div>
-          <div class="modal-sub">Pre-collected CSI files from test_data/</div>
-          <div id="file-picker-list" style="width:100%;max-width:320px;display:flex;flex-direction:column;gap:10px;max-height:60vh;overflow-y:auto;"></div>
-          <button class="panel-btn back" onclick="backToModes()">← BACK</button>
-        </div>
+/* ============================
+   SCROLLBAR GLOBAL
+   ============================ */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 99px; }
 
-        <!-- ── STEP 2: FILE UPLOAD PANEL ── -->
-        <!-- <div id="upload-panel" class="hidden">
-          <div class="modal-title">Upload Test Wall Dataset</div>
+/* ============================
+   UTILITY
+   ============================ */
+.mt-16 { margin-top: 16px; }
+.mt-10 { margin-top: 10px; }
+.tag {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  padding: 2px 7px;
+  border-radius: 2px;
+  text-transform: uppercase;
+  background: var(--border);
+  color: var(--text-muted);
+}
+.tag.cyan { background: var(--cyan-dim); color: var(--cyan); border: 1px solid rgba(0,229,255,0.2); }
+.tag.red  { background: var(--red-dim);  color: var(--red);  border: 1px solid rgba(255,59,59,0.2); }
+.tag.green{ background: var(--green-dim);color: var(--green);border: 1px solid rgba(0,230,118,0.2);}
+</style>
+</head>
+<body>
 
-          <div class="upload-box" onclick="document.getElementById('csv-file-input').click()">
-            <div class="upload-icon">📂</div>
-            <div>TAP TO SELECT CSV FILE</div>
-            <input type="file" id="csv-file-input" accept=".csv" onchange="onFileSelected(event)" />
-          </div>
+<div class="shell">
 
-          <div class="upload-info">
-            Save your test data as a <span>.CSV file</span>.<br>
-            Required column: <span>csi_data</span> (384 comma-separated integers per row).<br>
-            Export from ESP32 serial logger or Python script.
-          </div>
-
-          <div id="selected-file">✓ File selected: <span id="file-name-display"></span></div>
-
-          <button class="panel-btn" id="btn-run-test" onclick="runTest()" disabled>
-            ▶ RUN ANALYSIS
-          </button>
-          <button class="panel-btn back" onclick="backToModes()">← BACK</button>
-        </div> -->
-
-        <!-- ── STEP 3: ANALYSIS PROGRESS ── -->
-        <div id="analysis-panel" class="hidden">
-          <div class="progress-title">Analysing Wall...</div>
-          <div class="progress-track">
-            <div class="progress-fill" id="progress-fill"></div>
-          </div>
-          <div class="progress-log" id="progress-log"></div>
-        </div>
-      </div>
-      <!-- end camera-container -->
-
-      <!-- Status bar -->
-      <div id="status-bar">
-        <div id="status-dot"></div>
-        <span id="status-text">CAMERA OFF</span>
-      </div>
-
-      <!-- Buttons -->
-      <div id="ar-controls">
-        <button id="btn-scan" onclick="openModeModal()" disabled>
-          <span class="btn-icon">▶</span> START SCAN
-        </button>
-        <button id="btn-camera" onclick="toggleCamera()">
-          <span class="btn-icon">◉</span> START AR CAMERA
-        </button>
-      </div>
+  <!-- HEADER -->
+  <header>
+    <div class="logo-block">
+      <div class="logo-tag">CSI · v2.0 · TF.js</div>
+      <div class="logo-title">WiFi <span>Leak</span> Detect</div>
     </div>
+    <div class="header-status">
+      <div class="status-dot" id="sys-dot"></div>
+      <span id="sys-label">INITIALIZING</span>
+    </div>
+  </header>
 
-    <!-- ══ RESULTS VIEW ══ -->
-    <div id="results-view" class="view">
-      <div class="result-header">Scan Results</div>
-      <div id="results-content">
-        <div class="no-results">
-          <div class="icon">🔍</div>
-          <div>No scan data yet</div>
-          <div style="font-size: 10px; margin-top: 4px">
-            AR View → Start Camera → Start Scan
+  <!-- MAIN GRID -->
+  <div class="main-grid">
+
+    <!-- LEFT: CONTROL PANEL -->
+    <div class="left-col">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-icon"></div>
+          <div class="panel-label">Test File Selection</div>
+        </div>
+        <div class="panel-body">
+          <div class="section-label">Server files</div>
+          <div class="file-list" id="file-list">
+            <div class="file-empty" id="file-empty">Loading…</div>
           </div>
+
+          <div class="upload-zone" id="upload-zone">
+            <input type="file" id="csv-upload" accept=".csv" />
+            <label class="upload-zone-label" for="csv-upload">
+              ↑ &nbsp;Drop / click to upload local CSV
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel mt-16">
+        <div class="panel-header">
+          <div class="panel-icon"></div>
+          <div class="panel-label">Parameters</div>
+        </div>
+        <div class="panel-body">
+          <div class="config-grid">
+            <div class="config-field">
+              <label>Window Size</label>
+              <input type="number" id="cfg-window" value="50" min="10" max="200" />
+            </div>
+            <div class="config-field">
+              <label>Step Size</label>
+              <input type="number" id="cfg-step" value="5" min="1" max="50" />
+            </div>
+            <div class="config-field">
+              <label>Prob Threshold</label>
+              <input type="number" id="cfg-thresh" value="0.85" min="0" max="1" step="0.01" />
+            </div>
+            <div class="config-field">
+              <label>Min Wet Windows</label>
+              <input type="number" id="cfg-minwet" value="40" min="1" max="500" />
+            </div>
+          </div>
+
+          <button class="run-btn" id="run-btn" disabled>
+            <div class="btn-spinner"></div>
+            <span id="run-btn-text">RUN ANALYSIS</span>
+          </button>
+
+          <div class="progress-wrap" id="progress-wrap">
+            <div class="progress-label">
+              <span id="prog-msg">Processing windows…</span>
+              <span id="prog-pct">0%</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" id="prog-fill"></div>
+            </div>
+          </div>
+
+          <div class="log-console" id="log-console"></div>
         </div>
       </div>
     </div>
 
-    <!-- ══ CSI VIEW ══ -->
-    <div id="csi-view" class="view">
-      <div class="csi-section">
-        <div class="csi-title">System Info</div>
-        <div class="csi-row">
-          <span>Model</span><span>SeepageNet v3.0</span>
-        </div>
-        <div class="csi-row"><span>Mode</span><span id="csi-mode">—</span></div>
-        <div class="csi-row">
-          <span>Camera</span><span id="csi-cam-status">Inactive</span>
-        </div>
-        <div class="csi-row">
-          <span>Test File</span><span id="csi-test-file">—</span>
-        </div>
-        <div class="csi-row">
-          <span>Windows Analysed</span><span id="csi-windows">0</span>
-        </div>
-        <div class="csi-row">
-          <span>Last Scan</span><span id="csi-last-scan">—</span>
-        </div>
-      </div>
-      <div class="csi-section">
-        <div class="csi-title">Wall Grid Points</div>
-        <div class="csi-row">
-          <span>X Points (Horizontal)</span><span>-2, -1, 0, +1, +2 ft</span>
-        </div>
-        <div class="csi-row">
-          <span>Y Points (Vertical)</span
-          ><span>+1 (Top), 0 (Mid), -1 (Bot)</span>
-        </div>
-        <div class="csi-row"><span>Total Grid Points</span><span>15</span></div>
-      </div>
-      <div class="csi-section">
-        <div class="csi-title">Detection Parameters</div>
-        <div class="csi-row">
-          <span>Window Size</span><span>50 packets</span>
-        </div>
-        <div class="csi-row"><span>Step Size</span><span>5 packets</span></div>
-        <div class="csi-row">
-          <span>Probability Threshold</span><span>0.85</span>
-        </div>
-        <div class="csi-row"><span>Min Wet Windows</span><span>40</span></div>
-      </div>
-      <div class="csi-section">
-        <div class="csi-title">How It Works</div>
-        <div style="font-size: 11px; color: var(--text-dim); line-height: 1.7">
-          1. Start camera to view the wall in AR.<br />
-          2. Press START SCAN and select Mode 01.<br />
-          3. 3. System automatically loads pre-collected CSI test data.<br />
-          4. Detection model analyses each 50-packet window.<br />
-          5. If seepage is found, localization model predicts (X, Y)
-          coordinates.<br />
-          6. Results are overlaid on the AR wall grid — red = wet, green = dry.
-        </div>
-      </div>
-    </div>
+    <!-- RIGHT: RESULTS -->
+    <div class="right-col">
 
-    <script>
-      // ── STATE ──
-      let stream = null;
-      let cameraActive = false;
-      let scanCount = 0;
-      let selectedFile = null;
-      let lastResult = null;
-
-      // Grid config
-      const X_POINTS = [-2, -1, 0, 1, 2];
-      const Y_POINTS = [1, 0, -1];
-      const PROB_THRESHOLD = 0.85;
-      const MIN_WET_WINDOWS = 40;
-
-      // ── DOM REFS ──
-      const video = document.getElementById("camera-feed");
-      const noCamera = document.getElementById("no-camera");
-      const scanOverlay = document.getElementById("scan-overlay");
-      const statusDot = document.getElementById("status-dot");
-      const statusText = document.getElementById("status-text");
-      const btnScan = document.getElementById("btn-scan");
-      const btnCamera = document.getElementById("btn-camera");
-      const modeModal = document.getElementById("mode-modal");
-      const uploadPanel = document.getElementById("upload-panel");
-      const analysisPanel = document.getElementById("analysis-panel");
-      const arGrid = document.getElementById("ar-grid");
-
-      // ── VIEW SWITCHING ──
-      function switchView(name) {
-        document
-          .querySelectorAll(".view")
-          .forEach((v) => v.classList.remove("active"));
-        document
-          .querySelectorAll("nav button")
-          .forEach((b) => b.classList.remove("active"));
-        document.getElementById(name + "-view").classList.add("active");
-        event.target.classList.add("active");
-      }
-
-      // ── CAMERA ──
-      async function toggleCamera() {
-        if (cameraActive) stopCamera();
-        else await startCamera();
-      }
-
-      async function startCamera() {
-        try {
-          setStatus("REQUESTING CAMERA...", "scanning");
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              facingMode: { ideal: "environment" },
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-            },
-            audio: false,
-          });
-          video.srcObject = stream;
-          video.style.display = "block";
-          noCamera.style.display = "none";
-          await new Promise((res) => {
-            video.onloadedmetadata = res;
-          });
-          await video.play();
-          cameraActive = true;
-          btnCamera.innerHTML =
-            '<span class="btn-icon">◉</span> STOP AR CAMERA';
-          btnCamera.classList.add("stop-mode");
-          btnScan.disabled = false;
-          setStatus("CAMERA ACTIVE — AIM AT WALL", "active");
-          updateCSI();
-        } catch (err) {
-          let msg = "CAMERA ERROR";
-          if (err.name === "NotAllowedError")
-            msg = "PERMISSION DENIED — ALLOW CAMERA";
-          else if (err.name === "NotFoundError") msg = "NO CAMERA FOUND";
-          setStatus(msg, "");
-          noCamera.style.display = "flex";
-        }
-      }
-
-      function stopCamera() {
-        if (stream) {
-          stream.getTracks().forEach((t) => t.stop());
-          stream = null;
-        }
-        video.style.display = "none";
-        video.srcObject = null;
-        noCamera.style.display = "flex";
-        cameraActive = false;
-        btnCamera.innerHTML = '<span class="btn-icon">◉</span> START AR CAMERA';
-        btnCamera.classList.remove("stop-mode");
-        btnScan.disabled = true;
-        scanOverlay.classList.remove("active");
-        arGrid.innerHTML = "";
-        arGrid.classList.remove("active");
-        hideAllPanels();
-        setStatus("CAMERA OFF", "");
-        updateCSI();
-      }
-
-      // ── MODAL FLOW ──
-      function openModeModal() {
-        if (!cameraActive) return;
-        hideAllPanels();
-        modeModal.classList.remove("hidden");
-        setStatus("SELECT SCAN MODE", "scanning");
-      }
-
-      function cancelModal() {
-        hideAllPanels();
-        setStatus("CAMERA ACTIVE — AIM AT WALL", "active");
-      }
-
-      // function selectMode(mode) {
-      //   if (mode === 1) {
-      //     modeModal.classList.add("hidden");
-      //     uploadPanel.classList.remove("hidden");
-      //     setStatus("AWAITING FILE UPLOAD", "scanning");
-      //   }
-      // }
-
-      async function selectMode(mode) {
-        if (mode === 1) {
-          modeModal.classList.add("hidden");
-          // Fetch available test files from backend, then show picker
-          setStatus("LOADING TEST FILES...", "scanning");
-          try {
-            const res = await fetch("http://127.0.0.1:5000/list-tests");
-            const data = await res.json();
-            if (data.files && data.files.length > 0) {
-              showFilePicker(data.files);
-            } else {
-              logMsg("❌ No test CSV files found in test_data/ folder");
-              setStatus("ERROR — NO TEST FILES FOUND", "");
-              analysisPanel.classList.remove("hidden");
-              document.getElementById("progress-fill").style.width = "0%";
-            }
-          } catch (err) {
-            // Backend unreachable — show error in analysis panel
-            analysisPanel.classList.remove("hidden");
-            document.getElementById("progress-log").innerHTML = "";
-            document.getElementById("progress-fill").style.width = "0%";
-            logMsg("❌ Cannot reach backend at http://127.0.0.1:5000");
-            logMsg("Make sure app.py is running: python app.py");
-            setStatus("ERROR — BACKEND NOT RUNNING", "");
-          }
-        }
-      }
-
-      // ── FILE PICKER (auto-populated from backend) ──
-      function showFilePicker(files) {
-        const picker = document.getElementById("file-picker-panel");
-        const list = document.getElementById("file-picker-list");
-        list.innerHTML = "";
-        files.forEach(name => {
-          const btn = document.createElement("button");
-          btn.className = "mode-btn";
-          btn.innerHTML = `<span class="mode-label">📂 ${name}</span>`;
-          btn.onclick = () => {
-            picker.classList.add("hidden");
-            startAnalysis(name);
-          };
-          list.appendChild(btn);
-        });
-        picker.classList.remove("hidden");
-        setStatus("SELECT TEST DATASET", "scanning");
-      }
-      function backToModes() {
-        uploadPanel.classList.add("hidden");
-        modeModal.classList.remove("hidden");
-        selectedFile = null;
-        document.getElementById("selected-file").style.display = "none";
-        document.getElementById("btn-run-test").disabled = true;
-      }
-
-      function hideAllPanels() {
-        modeModal.classList.add("hidden");
-        uploadPanel.classList.add("hidden");
-        analysisPanel.classList.add("hidden");
-        const fp = document.getElementById("file-picker-panel");
-        if (fp) fp.classList.add("hidden");
-      }
-
-      // ── FILE SELECTION ──
-      // function onFileSelected(event) {
-      //   const file = event.target.files[0];
-      //   if (!file) return;
-      //   selectedFile = file;
-      //   document.getElementById("file-name-display").textContent = file.name;
-      //   document.getElementById("selected-file").style.display = "block";
-      //   document.getElementById("btn-run-test").disabled = false;
-      //   document.getElementById("csi-test-file").textContent = file.name;
-      // }
-
-      // ── RUN TEST ──
-      // function runTest() {
-      //   if (!selectedFile) return;
-      //   uploadPanel.classList.add("hidden");
-      //   analysisPanel.classList.remove("hidden");
-      //   setStatus("ANALYSING...", "scanning");
-      //   scanOverlay.classList.add("active");
-
-      //   const reader = new FileReader();
-      //   reader.onload = function(e) {
-      //     const csvText = e.target.result;
-      //     processCSV(csvText);
-      //   };
-      //   reader.readAsText(selectedFile);
-      // }
-
-      // ── CSV PARSING ──
-      // function parseCSI(csiStr) {
-      //   try {
-      //     const vals = String(csiStr).replace(/"/g, '').trim().split(',').map(x => parseInt(x.trim())).filter(x => !isNaN(x));
-      //     return vals.length === 384 ? vals : null;
-      //   } catch { return null; }
-      // }
-
-      // function processCSV(csvText) {
-      //   const log = document.getElementById("progress-log");
-      //   const fill = document.getElementById("progress-fill");
-
-      //   logMsg("📂 Parsing CSV file...");
-      //   fill.style.width = "10%";
-
-      //   // Parse CSV rows
-      //   const lines = csvText.trim().split('\n');
-      //   const headers = lines[0].split(',').map(h => h.trim().replace(/"/g,''));
-      //   const csiIndex = headers.findIndex(h => h.toLowerCase() === 'csi_data');
-
-      //   if (csiIndex === -1) {
-      //     logMsg("❌ ERROR: No 'csi_data' column found in CSV.");
-      //     logMsg("Make sure your CSV has a column named: csi_data");
-      //     setStatus("ERROR — INVALID FILE FORMAT", "");
-      //     setTimeout(() => { hideAllPanels(); setStatus("CAMERA ACTIVE — AIM AT WALL","active"); }, 4000);
-      //     return;
-      //   }
-
-      //   const csiMatrix = [];
-      //   for (let i = 1; i < lines.length; i++) {
-      //     // Handle quoted CSV properly
-      //     const row = lines[i];
-      //     // Find the csi_data field - it may be quoted and contain commas
-      //     let parsed = null;
-      //     // Try to extract entire row value for csi_data column
-      //     if (headers.length <= 3) {
-      //       // Simple: csi_data might be the whole or last column
-      //       const parts = row.match(/(".*?"|[^,]+)(?=,|$)/g) || [];
-      //       if (parts[csiIndex]) {
-      //         parsed = parseCSI(parts[csiIndex]);
-      //       }
-      //     } else {
-      //       parsed = parseCSI(row);
-      //     }
-      //     if (parsed) csiMatrix.push(parsed);
-      //   }
-
-      //   logMsg(`✓ Found ${csiMatrix.length} valid CSI packets`);
-      //   fill.style.width = "25%";
-
-      //   if (csiMatrix.length < 50) {
-      //     logMsg("❌ Not enough data. Need at least 50 rows.");
-      //     setStatus("ERROR — NOT ENOUGH DATA", "");
-      //     return;
-      //   }
-
-      //   // ── SIMULATE MODEL INFERENCE ──
-      //   // NOTE: In production, replace this section with a real fetch()
-      //   // call to your Python/Flask backend or TensorFlow.js model.
-      //   // This simulation mimics what your Python test code does.
-      //   simulateModelInference(csiMatrix, fill, log);
-      // }
-
-      function logMsg(msg) {
-        const log = document.getElementById("progress-log");
-        log.innerHTML += msg + "<br>";
-        log.scrollTop = log.scrollHeight;
-      }
-
-      // ── MODEL SIMULATION (Replace with real API call) ──
-      // This function mimics your Python test.py logic.
-      // To connect to real model: replace with fetch() to your Flask API.
-      // function simulateModelInference(csiMatrix, fill, log) {
-      //   const WINDOW_SIZE = 50;
-      //   const STEP_SIZE = 5;
-
-      //   logMsg("🔎 Running detection model...");
-      //   fill.style.width = "40%";
-
-      //   setTimeout(() => {
-      //     const probs = [];
-      //     const coords = [];
-      //     const totalWindows = Math.floor((csiMatrix.length - WINDOW_SIZE) / STEP_SIZE) + 1;
-
-      //     // ── CALL YOUR REAL MODEL HERE ──
-      //     // For GitHub-hosted model (TensorFlow.js), use:
-      //     //   const model = await tf.loadLayersModel('YOUR_GITHUB_RAW_URL/model.json');
-      //     //   const result = model.predict(tensor);
-      //     //
-      //     // OR call your Flask API:
-      //     //   const res = await fetch('http://YOUR_API/predict', { method:'POST', body: formData });
-      //     //   const data = await res.json();
-      //     //   Use data.is_wet, data.x, data.y
-      //     //
-      //     // For now, this demo simulates detection based on CSV variance:
-      //     for (let i = 0; i < totalWindows; i++) {
-      //       const window = csiMatrix.slice(i * STEP_SIZE, i * STEP_SIZE + WINDOW_SIZE);
-      //       const flat = window.flat();
-      //       const mean = flat.reduce((a, b) => a + b, 0) / flat.length;
-      //       const variance = flat.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / flat.length;
-      //       // Normalize to 0-1 probability
-      //       const p = Math.min(1, variance / 5000);
-      //       probs.push(p);
-      //       if (p > PROB_THRESHOLD) {
-      //         // Simulate localization: random within grid bounds
-      //         const x = (Math.random() * 4) - 2;  // -2 to 2
-      //         const y = (Math.random() * 2) - 1;  // -1 to 1
-      //         coords.push([x, y]);
-      //       }
-      //     }
-
-      //     logMsg(`✓ Analysed ${totalWindows} windows`);
-      //     logMsg(`✓ Wet detections: ${coords.length}`);
-      //     fill.style.width = "80%";
-
-      //     setTimeout(() => {
-      //       fill.style.width = "100%";
-      //       logMsg("✓ Analysis complete!");
-
-      //       setTimeout(() => {
-      //         hideAllPanels();
-      //         scanOverlay.classList.remove("active");
-
-      //         const isWet = coords.length >= MIN_WET_WINDOWS;
-      //         lastResult = { isWet, coords, probs, windowCount: totalWindows };
-
-      //         if (isWet) {
-      //           drawARGrid(coords);
-      //           renderWetResult(coords, totalWindows);
-      //           setStatus("⚠ SEEPAGE DETECTED — SEE RESULTS", "scanning");
-      //         } else {
-      //           drawARGrid([]);
-      //           renderDryResult(totalWindows);
-      //           setStatus("✅ WALL STATUS: DRY / SECURE", "active");
-      //         }
-
-      //         scanCount++;
-      //         document.getElementById("csi-windows").textContent = totalWindows;
-      //         document.getElementById("csi-last-scan").textContent = new Date().toLocaleTimeString();
-      //         document.getElementById("csi-mode").textContent = "Pre-collected CSV";
-      //       }, 600);
-      //     }, 1200);
-      //   }, 800);
-      // }
-
-      // ── DRAW AR WALL GRID ON CAMERA OVERLAY ──
-      function drawARGrid(wetCoords) {
-        const container = document.getElementById("camera-container");
-        const W = container.offsetWidth;
-        const H = container.offsetHeight;
-
-        const padX = W * 0.12;
-        const padY = H * 0.12;
-        const gridW = W - padX * 2;
-        const gridH = H - padY * 2;
-
-        // Map wall coords to pixel coords
-        function toPixel(wx, wy) {
-          const px = padX + ((wx - -2) / 4) * gridW;
-          const py = padY + ((1 - wy) / 2) * gridH;
-          return [px, py];
-        }
-
-        // Build heat map for grid points
-        const heatMap = {};
-        X_POINTS.forEach((x) =>
-          Y_POINTS.forEach((y) => {
-            heatMap[`${x},${y}`] = 0;
-          }),
-        );
-        wetCoords.forEach(([wx, wy]) => {
-          const xi = X_POINTS.reduce((best, v) =>
-            Math.abs(v - wx) < Math.abs(best - wx) ? v : best,
-          );
-          const yi = Y_POINTS.reduce((best, v) =>
-            Math.abs(v - wy) < Math.abs(best - wy) ? v : best,
-          );
-          heatMap[`${xi},${yi}`]++;
-        });
-        const maxHeat = Math.max(...Object.values(heatMap), 1);
-
-        let svgLines = "";
-        let svgLabels = "";
-        let svgPoints = "";
-
-        // Draw grid lines
-        X_POINTS.forEach((x) => {
-          const [px1] = toPixel(x, 1);
-          const [, py1] = toPixel(x, 1);
-          const [px2, py2] = toPixel(x, -1);
-          svgLines += `<line x1="${px1}" y1="${py1}" x2="${px2}" y2="${py2}" stroke="rgba(0,229,255,0.2)" stroke-width="1" stroke-dasharray="4,4"/>`;
-          svgLabels += `<text x="${px1}" y="${H - padY + 18}" text-anchor="middle" fill="rgba(0,229,255,0.5)" font-size="10" font-family="Courier New">${x}ft</text>`;
-        });
-        Y_POINTS.forEach((y) => {
-          const [px1, py1] = toPixel(-2, y);
-          const [px2] = toPixel(2, y);
-          svgLines += `<line x1="${px1}" y1="${py1}" x2="${px2}" y2="${py1}" stroke="rgba(0,229,255,0.2)" stroke-width="1" stroke-dasharray="4,4"/>`;
-          const label = y === 1 ? "TOP" : y === 0 ? "MID" : "BOT";
-          svgLabels += `<text x="${padX - 8}" y="${py1 + 4}" text-anchor="end" fill="rgba(0,229,255,0.5)" font-size="10" font-family="Courier New">${label}</text>`;
-        });
-
-        // Draw grid points
-        X_POINTS.forEach((x) =>
-          Y_POINTS.forEach((y) => {
-            const [px, py] = toPixel(x, y);
-            const heat = heatMap[`${x},${y}`];
-            const intensity = heat / maxHeat;
-            let color,
-              pulse = "";
-            if (wetCoords.length === 0) {
-              color = "rgba(0,230,118,0.8)"; // all green = dry
-            } else if (intensity > 0.5) {
-              color = `rgba(255,68,68,${0.6 + intensity * 0.4})`;
-              pulse = `<circle cx="${px}" cy="${py}" r="16" fill="none" stroke="rgba(255,68,68,0.3)" stroke-width="1"><animate attributeName="r" values="12;22;12" dur="2s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.6;0;0.6" dur="2s" repeatCount="indefinite"/></circle>`;
-            } else if (intensity > 0) {
-              color = "rgba(255,170,0,0.8)";
-            } else {
-              color = "rgba(0,229,255,0.5)";
-            }
-            svgPoints += pulse;
-            svgPoints += `<circle cx="${px}" cy="${py}" r="10" fill="${color}" stroke="white" stroke-width="1.5"/>`;
-            if (heat > 0) {
-              svgPoints += `<text x="${px}" y="${py + 4}" text-anchor="middle" fill="white" font-size="9" font-family="Courier New" font-weight="bold">!</text>`;
-            }
-          }),
-        );
-
-        // Status label
-        const isWet = wetCoords.length >= MIN_WET_WINDOWS;
-        const statusLabel = isWet
-          ? `<rect x="${padX}" y="${padY - 30}" width="160" height="22" rx="3" fill="rgba(255,68,68,0.8)"/><text x="${padX + 8}" y="${padY - 15}" fill="white" font-size="11" font-family="Courier New">⚠ SEEPAGE DETECTED</text>`
-          : `<rect x="${padX}" y="${padY - 30}" width="160" height="22" rx="3" fill="rgba(0,230,118,0.7)"/><text x="${padX + 8}" y="${padY - 15}" fill="white" font-size="11" font-family="Courier New">✓ DRY / SECURE</text>`;
-
-        arGrid.innerHTML = `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
-          ${svgLines}${svgLabels}${statusLabel}${svgPoints}
-        </svg>`;
-        arGrid.classList.add("active");
-      }
-
-      // ── RENDER RESULTS PAGE ──
-      function renderWetResult(coords, windowCount) {
-        const avgX = coords.reduce((s, c) => s + c[0], 0) / coords.length;
-        const avgY = coords.reduce((s, c) => s + c[1], 0) / coords.length;
-        const nearestX = X_POINTS.reduce((b, v) =>
-          Math.abs(v - avgX) < Math.abs(b - avgX) ? v : b,
-        );
-        const nearestY = Y_POINTS.reduce((b, v) =>
-          Math.abs(v - avgY) < Math.abs(b - avgY) ? v : b,
-        );
-        const yLabel =
-          nearestY === 1 ? "TOP" : nearestY === 0 ? "MIDDLE" : "BOTTOM";
-
-        const heatRows = buildHeatMapSVG(coords);
-
-        document.getElementById("results-content").innerHTML = `
-          <div class="summary-card">
-            Scan #${scanCount + 1} — <strong>${new Date().toLocaleTimeString()}</strong><br>
-            Status: <strong style="color:var(--danger)">⚠ SEEPAGE DETECTED</strong><br>
-            Primary location: <strong>X=${nearestX}ft, ${yLabel} of wall</strong>.<br>
-            Immediate inspection recommended.
+      <!-- VERDICT -->
+      <div class="verdict-card idle" id="verdict-card">
+        <div class="verdict-inner">
+          <div class="verdict-icon" id="verdict-icon">◈</div>
+          <div class="verdict-text">
+            <div class="verdict-main" id="verdict-main">AWAITING</div>
+            <div class="verdict-sub" id="verdict-sub">Select a test file and run analysis</div>
           </div>
-
-          <div class="wall-map-container result-card">
-            <div class="result-card-header">
-              <div class="result-label" style="color:var(--danger)">Wall Seepage Map</div>
-              <div class="severity-badge severity-high">DANGER</div>
-            </div>
-            <svg id="wall-map-svg" viewBox="0 0 300 180" xmlns="http://www.w3.org/2000/svg">
-              ${heatRows}
-            </svg>
-            <div class="scan-time">Red = High seepage intensity · Orange = Low · Cyan = Dry</div>
+        </div>
+        <div class="stats-row">
+          <div class="stat-cell">
+            <div class="stat-val" id="stat-windows">—</div>
+            <div class="stat-lbl">Total Windows</div>
           </div>
-
-          <div class="result-card">
-            <div class="result-card-header">
-              <div class="result-label" style="color:var(--cyan)">Analysis Summary</div>
-            </div>
-            <div class="result-bars">
-              <div class="bar-row">
-                <div class="bar-label"><span>Wet Windows</span><span>${coords.length} / ${windowCount}</span></div>
-                <div class="bar-track"><div class="bar-fill danger" style="width:${Math.min(100, (coords.length / windowCount) * 100)}%"></div></div>
-              </div>
-              <div class="bar-row">
-                <div class="bar-label"><span>Seepage Confidence</span><span>${Math.min(100, Math.round((coords.length / MIN_WET_WINDOWS) * 60))}%</span></div>
-                <div class="bar-track"><div class="bar-fill danger" style="width:${Math.min(100, (coords.length / MIN_WET_WINDOWS) * 60)}%"></div></div>
-              </div>
-            </div>
-            <div class="scan-time">Centroid: X=${avgX.toFixed(2)}ft · Y=${avgY.toFixed(2)}ft</div>
-          </div>`;
-      }
-
-      function renderDryResult(windowCount) {
-        document.getElementById("results-content").innerHTML = `
-          <div class="summary-card">
-            Scan #${scanCount + 1} — <strong>${new Date().toLocaleTimeString()}</strong><br>
-            Status: <strong style="color:var(--success)">✅ WALL DRY / SECURE</strong><br>
-            No seepage detected across ${windowCount} analysis windows.
+          <div class="stat-cell">
+            <div class="stat-val" id="stat-wet">—</div>
+            <div class="stat-lbl">Wet Windows</div>
           </div>
-          <div class="result-card">
-            <div class="result-card-header">
-              <div class="result-label" style="color:var(--success)">All Grid Points Clear</div>
-              <div class="severity-badge severity-low">SAFE</div>
-            </div>
-            <div style="text-align:center;padding:20px;font-size:32px;letter-spacing:4px;color:var(--success)">✓</div>
-            <div class="scan-time">Windows analysed: ${windowCount} · Threshold: ${PROB_THRESHOLD}</div>
-          </div>`;
+          <div class="stat-cell">
+            <div class="stat-val" id="stat-ratio">—</div>
+            <div class="stat-lbl">Wet Ratio</div>
+          </div>
+          <div class="stat-cell">
+            <div class="stat-val" id="stat-packets">—</div>
+            <div class="stat-lbl">CSI Packets</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PROB TIMELINE -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-icon"></div>
+          <div class="panel-label">Detection Probability Timeline</div>
+          <span class="tag cyan" id="thresh-tag">THR 0.85</span>
+        </div>
+        <div class="panel-body">
+          <div class="prob-chart-wrap">
+            <canvas id="prob-chart"></canvas>
+            <div class="threshold-label" id="thresh-line-label">THR</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- HEATMAP -->
+      <div class="panel heatmap-panel">
+        <div class="panel-header">
+          <div class="panel-icon"></div>
+          <div class="panel-label">Localization Heatmap</div>
+          <span class="tag" id="coord-count-tag">0 coords</span>
+        </div>
+        <div class="panel-body">
+          <div class="heatmap-wrap" id="heatmap-wrap">
+            <canvas id="heatmap" width="600" height="400"></canvas>
+            <div class="heatmap-overlay" id="heatmap-overlay">NO DATA</div>
+          </div>
+          <div class="colorbar">
+            <span class="colorbar-label">LOW</span>
+            <div class="colorbar-track"></div>
+            <span class="colorbar-label">HIGH</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- COORD TABLE -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-icon"></div>
+          <div class="panel-label">Localized Coordinates</div>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <div class="coord-table-wrap">
+            <table class="coord-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>X (m)</th>
+                  <th>Y (m)</th>
+                  <th>Window</th>
+                </tr>
+              </thead>
+              <tbody id="coord-tbody">
+                <tr class="empty-row"><td colspan="4">No results yet</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /right-col -->
+  </div><!-- /main-grid -->
+
+</div><!-- /shell -->
+
+<!-- =====================================================
+     JAVASCRIPT — TF.JS IN-BROWSER INFERENCE
+     ===================================================== -->
+<script>
+// ==============================
+// CONFIG & STATE
+// ==============================
+const CFG = {
+  DET_MODEL_URL:  '/detection_model/model.json',
+  LOC_MODEL_URL:  '/localization_model/model.json',
+  DET_SCALER_URL: '/scaler_params.json',
+  LOC_SCALER_URL: '/loc_scaler_params.json',
+  CSI_LEN: 384,
+};
+
+const state = {
+  detModel:  null,
+  locModel:  null,
+  detScaler: null,
+  locScaler: null,
+  selectedFile: null,   // { type: 'server'|'local', name, data }
+  running: false,
+  allProbs: [],
+  coords: [],
+};
+
+// ==============================
+// LOGGING
+// ==============================
+function log(msg, type = '') {
+  const el = document.getElementById('log-console');
+  const ts = new Date().toLocaleTimeString('en', { hour12: false });
+  const line = document.createElement('div');
+  line.className = 'log-line ' + type;
+  line.innerHTML = `<span class="log-prefix">[${ts}]</span>${msg}`;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+// ==============================
+// SYSTEM STATUS DOT
+// ==============================
+function setSysStatus(status, label) {
+  const dot = document.getElementById('sys-dot');
+  const lbl = document.getElementById('sys-label');
+  dot.className = 'status-dot ' + status;
+  lbl.textContent = label;
+}
+
+// ==============================
+// LOAD MODELS & SCALERS
+// ==============================
+async function initSystem() {
+  setSysStatus('loading', 'LOADING MODELS');
+  log('Initializing TensorFlow.js backend…', 'info');
+
+  try {
+    await tf.ready();
+    log(`TF backend: ${tf.getBackend()}`, 'info');
+
+    // Load detection model
+    log('Loading detection model…');
+    state.detModel = await tf.loadLayersModel(CFG.DET_MODEL_URL);
+    log('Detection model ready ✓', 'ok');
+
+    // Load localization model
+    log('Loading localization model…');
+    state.locModel = await tf.loadLayersModel(CFG.LOC_MODEL_URL);
+    log('Localization model ready ✓', 'ok');
+
+    // Load scalers
+    log('Loading scalers…');
+    const detRes = await fetch(CFG.DET_SCALER_URL);
+    if (!detRes.ok) throw new Error(`Det scaler not found at ${CFG.DET_SCALER_URL}`);
+    state.detScaler = await detRes.json();
+
+    const locRes = await fetch(CFG.LOC_SCALER_URL);
+    if (!locRes.ok) throw new Error(`Loc scaler not found at ${CFG.LOC_SCALER_URL}`);
+    state.locScaler = await locRes.json();
+
+    log('All scalers loaded ✓', 'ok');
+    setSysStatus('ok', 'SYSTEM READY');
+
+    // Load file list
+    await loadFileList();
+    updateRunBtn();
+
+  } catch (e) {
+    log('Init error: ' + e.message, 'err');
+    setSysStatus('err', 'INIT FAILED');
+    console.error(e);
+  }
+}
+
+// ==============================
+// SCALER TRANSFORM
+// ==============================
+function scalerTransform(scaler, data) {
+  // Supports StandardScaler: {mean, scale} or {mean_, scale_}
+  // or MinMaxScaler: {data_min_, data_max_, scale_} etc.
+  const mean  = scaler.mean   ?? scaler.mean_   ?? null;
+  const scale = scaler.scale  ?? scaler.scale_  ?? null;
+
+  if (mean && scale) {
+    // StandardScaler
+    return data.map((row, ri) => row.map((v, ci) => {
+      const m = Array.isArray(mean)  ? mean[ci]  : mean;
+      const s = Array.isArray(scale) ? scale[ci] : scale;
+      return (v - m) / (s || 1);
+    }));
+  }
+
+  // Passthrough if unknown format
+  log('Scaler format unrecognized — using raw values', 'warn');
+  return data;
+}
+
+// ==============================
+// CSI PARSE
+// ==============================
+function parseCSI(raw) {
+  try {
+    const vals = String(raw)
+      .replace(/"/g, '').trim().split(',')
+      .map(x => parseFloat(x.trim()))
+      .filter(x => !isNaN(x));
+    return vals.length === CFG.CSI_LEN ? vals : null;
+  } catch { return null; }
+}
+
+// ==============================
+// FILE LIST FROM SERVER
+// ==============================
+async function loadFileList() {
+  const listEl = document.getElementById('file-list');
+  const emptyEl = document.getElementById('file-empty');
+
+  try {
+    const res = await fetch('/list-tests');
+    if (!res.ok) throw new Error('Could not reach /list-tests');
+    const data = await res.json();
+    const files = data.files || [];
+
+    // Remove loading placeholder
+    if (emptyEl) emptyEl.remove();
+
+    if (files.length === 0) {
+      listEl.innerHTML = '<div class="file-empty">No CSV files in test_data/</div>';
+      return;
+    }
+
+    files.forEach(name => {
+      const el = document.createElement('div');
+      el.className = 'file-item';
+      el.textContent = name;
+      el.addEventListener('click', () => selectServerFile(name, el));
+      listEl.appendChild(el);
+    });
+
+  } catch (e) {
+    if (emptyEl) emptyEl.textContent = 'Server offline — upload CSV below';
+    log('Could not load file list: ' + e.message, 'warn');
+  }
+}
+
+function selectServerFile(name, el) {
+  document.querySelectorAll('.file-item').forEach(i => i.classList.remove('selected'));
+  el.classList.add('selected');
+  state.selectedFile = { type: 'server', name };
+  log(`Selected: ${name}`);
+  updateRunBtn();
+}
+
+// ==============================
+// LOCAL CSV UPLOAD
+// ==============================
+document.getElementById('csv-upload').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  state.selectedFile = { type: 'local', name: file.name, file };
+  document.querySelectorAll('.file-item').forEach(i => i.classList.remove('selected'));
+  log(`Local file: ${file.name}`, 'info');
+  updateRunBtn();
+});
+
+// Drag & drop
+const uploadZone = document.getElementById('upload-zone');
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file && file.name.endsWith('.csv')) {
+    state.selectedFile = { type: 'local', name: file.name, file };
+    document.querySelectorAll('.file-item').forEach(i => i.classList.remove('selected'));
+    log(`Dropped: ${file.name}`, 'info');
+    updateRunBtn();
+  }
+});
+
+// ==============================
+// RUN BUTTON STATE
+// ==============================
+function updateRunBtn() {
+  const btn = document.getElementById('run-btn');
+  const modelsReady = state.detModel && state.locModel && state.detScaler && state.locScaler;
+  btn.disabled = !modelsReady || !state.selectedFile || state.running;
+}
+
+// ==============================
+// PROGRESS
+// ==============================
+function setProgress(pct, msg) {
+  document.getElementById('prog-fill').style.width = pct + '%';
+  document.getElementById('prog-pct').textContent = Math.round(pct) + '%';
+  if (msg) document.getElementById('prog-msg').textContent = msg;
+}
+
+function showProgress(visible) {
+  document.getElementById('progress-wrap').classList.toggle('visible', visible);
+}
+
+// ==============================
+// MAIN ANALYSIS
+// ==============================
+document.getElementById('run-btn').addEventListener('click', runAnalysis);
+
+async function runAnalysis() {
+  if (state.running || !state.selectedFile) return;
+
+  const WINDOW = parseInt(document.getElementById('cfg-window').value);
+  const STEP   = parseInt(document.getElementById('cfg-step').value);
+  const THRESH = parseFloat(document.getElementById('cfg-thresh').value);
+  const MINWET = parseInt(document.getElementById('cfg-minwet').value);
+
+  // Update threshold tag
+  document.getElementById('thresh-tag').textContent = `THR ${THRESH.toFixed(2)}`;
+
+  state.running = true;
+  updateRunBtn();
+  const btn = document.getElementById('run-btn');
+  btn.classList.add('running');
+  document.getElementById('run-btn-text').textContent = 'RUNNING…';
+  showProgress(true);
+  setProgress(0, 'Loading CSV…');
+
+  state.allProbs = [];
+  state.coords   = [];
+
+  try {
+    // 1. LOAD CSV
+    let csvText;
+    if (state.selectedFile.type === 'server') {
+      const res = await fetch(`/test-data/${encodeURIComponent(state.selectedFile.name)}`);
+      if (!res.ok) throw new Error(`Could not fetch ${state.selectedFile.name}`);
+      csvText = await res.text();
+    } else {
+      csvText = await state.selectedFile.file.text();
+    }
+
+    // 2. PARSE
+    setProgress(5, 'Parsing CSV…');
+    const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+    if (!parsed.data.length) throw new Error('CSV is empty');
+
+    // Find csi_data column (case-insensitive)
+    const row0 = parsed.data[0];
+    const csiCol = Object.keys(row0).find(k => k.toLowerCase() === 'csi_data');
+    if (!csiCol) throw new Error(`No 'csi_data' column. Found: ${Object.keys(row0).join(', ')}`);
+
+    const csiMatrix = parsed.data
+      .map(r => parseCSI(r[csiCol]))
+      .filter(Boolean);
+
+    if (csiMatrix.length < WINDOW) {
+      throw new Error(`Need ≥ ${WINDOW} valid rows; found ${csiMatrix.length}`);
+    }
+
+    log(`Parsed ${csiMatrix.length} CSI packets`, 'ok');
+    document.getElementById('stat-packets').textContent = csiMatrix.length;
+    setProgress(10, 'Running inference…');
+
+    // 3. SLIDING WINDOW INFERENCE
+    const totalWindows = Math.floor((csiMatrix.length - WINDOW) / STEP) + 1;
+    let processed = 0;
+    let wetWindows = 0;
+
+    for (let i = 0; i <= csiMatrix.length - WINDOW; i += STEP) {
+      const window = csiMatrix.slice(i, i + WINDOW); // shape [W, 384]
+
+      // --- DETECTION ---
+      const scaledDet = scalerTransform(state.detScaler, window);
+      const detTensor = tf.tensor3d([scaledDet]); // [1, W, 384]
+      const probTensor = state.detModel.predict(detTensor);
+      const prob = (await probTensor.data())[0];
+      tf.dispose([detTensor, probTensor]);
+
+      state.allProbs.push(prob);
+
+      // --- LOCALIZATION ---
+      if (prob > THRESH) {
+        wetWindows++;
+        const scaledLoc = scalerTransform(state.locScaler, window);
+        const locTensor = tf.tensor3d([scaledLoc]);
+        const xyTensor = state.locModel.predict(locTensor);
+        const xy = await xyTensor.data();
+        tf.dispose([locTensor, xyTensor]);
+        state.coords.push([xy[0], xy[1], i]); // [x, y, windowIndex]
       }
 
-      function buildHeatMapSVG(coords) {
-        const heatMap = {};
-        X_POINTS.forEach((x) =>
-          Y_POINTS.forEach((y) => {
-            heatMap[`${x},${y}`] = 0;
-          }),
-        );
-        coords.forEach(([wx, wy]) => {
-          const xi = X_POINTS.reduce((b, v) =>
-            Math.abs(v - wx) < Math.abs(b - wx) ? v : b,
-          );
-          const yi = Y_POINTS.reduce((b, v) =>
-            Math.abs(v - wy) < Math.abs(b - wy) ? v : b,
-          );
-          heatMap[`${xi},${yi}`]++;
-        });
-        const maxHeat = Math.max(...Object.values(heatMap), 1);
+      processed++;
+      const pct = 10 + (processed / totalWindows) * 85;
+      setProgress(pct, `Window ${processed}/${totalWindows} — wet: ${wetWindows}`);
 
-        let svg = "";
-        const cellW = 44,
-          cellH = 44;
-        const offX = 50,
-          offY = 20;
+      // Yield to UI every 20 windows
+      if (processed % 20 === 0) await new Promise(r => setTimeout(r, 0));
+    }
 
-        // Axis labels
-        X_POINTS.forEach((x, xi) => {
-          svg += `<text x="${offX + xi * cellW + cellW / 2}" y="${offY + Y_POINTS.length * cellH + 14}" text-anchor="middle" fill="#6a9ab5" font-size="9" font-family="Courier New">${x}ft</text>`;
-        });
-        Y_POINTS.forEach((y, yi) => {
-          const label = y === 1 ? "TOP" : y === 0 ? "MID" : "BOT";
-          svg += `<text x="${offX - 6}" y="${offY + yi * cellH + cellH / 2 + 4}" text-anchor="end" fill="#6a9ab5" font-size="9" font-family="Courier New">${label}</text>`;
-        });
+    setProgress(100, 'Done!');
+    log(`Processed ${processed} windows`, 'ok');
+    log(`Wet windows: ${wetWindows} / Min required: ${MINWET}`, wetWindows >= MINWET ? 'warn' : 'ok');
 
-        // Cells
-        Y_POINTS.forEach((y, yi) => {
-          X_POINTS.forEach((x, xi) => {
-            const heat = heatMap[`${x},${y}`];
-            const t = heat / maxHeat;
-            let fill;
-            if (coords.length === 0) fill = "#00e676";
-            else if (t > 0.6) fill = `rgba(255,68,68,${0.5 + t * 0.5})`;
-            else if (t > 0.2) fill = `rgba(255,170,0,${0.4 + t * 0.5})`;
-            else fill = "rgba(0,229,255,0.2)";
+    // 4. RENDER RESULTS
+    const isWet = wetWindows >= MINWET;
+    renderVerdict(isWet, processed, wetWindows, csiMatrix.length);
+    renderProbChart(state.allProbs, THRESH);
+    renderHeatmap(state.coords);
+    renderCoordTable(state.coords);
 
-            const cx = offX + xi * cellW;
-            const cy = offY + yi * cellH;
-            svg += `<rect x="${cx}" y="${cy}" width="${cellW - 2}" height="${cellH - 2}" rx="3" fill="${fill}" stroke="rgba(13,74,107,0.6)" stroke-width="1"/>`;
-            svg += `<text x="${cx + cellW / 2 - 1}" y="${cy + cellH / 2 + 4}" text-anchor="middle" fill="white" font-size="9" font-family="Courier New">${heat > 0 ? heat : "—"}</text>`;
-          });
-        });
-        return svg;
+    if (isWet) {
+      log('⚠ LEAK DETECTED', 'err');
+    } else {
+      log('✓ No leak detected', 'ok');
+    }
+
+  } catch (e) {
+    log('Error: ' + e.message, 'err');
+    console.error(e);
+    setProgress(0, 'Error');
+  } finally {
+    state.running = false;
+    btn.classList.remove('running');
+    document.getElementById('run-btn-text').textContent = 'RUN ANALYSIS';
+    updateRunBtn();
+    setTimeout(() => showProgress(false), 2000);
+  }
+}
+
+// ==============================
+// VERDICT
+// ==============================
+function renderVerdict(isWet, totalWindows, wetWindows, packets) {
+  const card = document.getElementById('verdict-card');
+  const icon = document.getElementById('verdict-icon');
+  const main = document.getElementById('verdict-main');
+  const sub  = document.getElementById('verdict-sub');
+
+  card.className = 'verdict-card ' + (isWet ? 'wet' : 'dry');
+  icon.textContent = isWet ? '⚠' : '✓';
+  main.textContent = isWet ? 'LEAK DETECTED' : 'NO LEAK FOUND';
+  sub.textContent  = isWet
+    ? `Moisture detected across ${wetWindows} windows — ${state.selectedFile.name}`
+    : `Signal is dry — ${state.selectedFile.name}`;
+
+  document.getElementById('stat-windows').textContent = totalWindows;
+  document.getElementById('stat-wet').textContent = wetWindows;
+  const ratio = totalWindows > 0 ? ((wetWindows / totalWindows) * 100).toFixed(1) + '%' : '—';
+  document.getElementById('stat-ratio').textContent = ratio;
+  document.getElementById('stat-packets').textContent = packets;
+}
+
+// ==============================
+// PROBABILITY CHART (canvas)
+// ==============================
+function renderProbChart(probs, threshold) {
+  const canvas = document.getElementById('prob-chart');
+  const wrap   = canvas.parentElement;
+  canvas.width  = wrap.offsetWidth || 600;
+  canvas.height = wrap.offsetHeight || 80;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  ctx.clearRect(0, 0, W, H);
+
+  if (!probs.length) return;
+
+  // Background
+  ctx.fillStyle = '#0b0c0e';
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 1;
+  for (let y = 0; y <= 4; y++) {
+    const yp = H - (y / 4) * H;
+    ctx.beginPath(); ctx.moveTo(0, yp); ctx.lineTo(W, yp); ctx.stroke();
+  }
+
+  // Threshold line
+  const thY = H - threshold * H;
+  ctx.strokeStyle = 'rgba(255,179,0,0.6)';
+  ctx.setLineDash([4, 3]);
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, thY); ctx.lineTo(W, thY); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Fill under curve
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0,   'rgba(0,229,255,0.25)');
+  grad.addColorStop(1,   'rgba(0,229,255,0.02)');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(0, H);
+  probs.forEach((p, i) => {
+    const x = (i / (probs.length - 1)) * W;
+    const y = H - p * H;
+    i === 0 ? ctx.lineTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.lineTo(W, H);
+  ctx.closePath();
+  ctx.fill();
+
+  // Line
+  ctx.strokeStyle = '#00e5ff';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  probs.forEach((p, i) => {
+    const x = (i / Math.max(probs.length - 1, 1)) * W;
+    const y = H - p * H;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+}
+
+// ==============================
+// HEATMAP
+// ==============================
+function renderHeatmap(coords) {
+  const canvas  = document.getElementById('heatmap');
+  const overlay = document.getElementById('heatmap-overlay');
+  const countTag = document.getElementById('coord-count-tag');
+
+  countTag.textContent = coords.length + ' coords';
+
+  if (!coords.length) {
+    overlay.style.display = 'flex';
+    overlay.textContent = 'NO DETECTIONS';
+    return;
+  }
+  overlay.style.display = 'none';
+
+  const W = canvas.width, H = canvas.height;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  // Background
+  ctx.fillStyle = '#0b0c0e';
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= W; x += 60) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+  for (let y = 0; y <= H; y += 60) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+
+  // Determine data range
+  const xs = coords.map(c => c[0]);
+  const ys = coords.map(c => c[1]);
+  const xMin = Math.min(...xs), xMax = Math.max(...xs);
+  const yMin = Math.min(...ys), yMax = Math.max(...ys);
+  const pad = 40;
+
+  function toCanvas(x, y) {
+    const cx = xMax === xMin
+      ? W / 2
+      : pad + ((x - xMin) / (xMax - xMin)) * (W - 2 * pad);
+    const cy = yMax === yMin
+      ? H / 2
+      : pad + ((y - yMin) / (yMax - yMin)) * (H - 2 * pad);
+    return [cx, cy];
+  }
+
+  // Density map
+  const density = new Float32Array(W * H);
+  const radius = Math.max(30, Math.min(W, H) / 8);
+  coords.forEach(([x, y]) => {
+    const [cx, cy] = toCanvas(x, y);
+    const r2 = radius * radius;
+    for (let py = Math.max(0, cy - radius); py < Math.min(H, cy + radius); py++) {
+      for (let px = Math.max(0, cx - radius); px < Math.min(W, cx + radius); px++) {
+        const d2 = (px - cx) ** 2 + (py - cy) ** 2;
+        if (d2 < r2) {
+          density[Math.round(py) * W + Math.round(px)] += 1 - d2 / r2;
+        }
       }
+    }
+  });
 
-      // ── STATUS ──
-      function setStatus(msg, mode) {
-        statusText.textContent = msg;
-        statusDot.className = "";
-        if (mode) statusDot.classList.add(mode);
-      }
+  const dMax = Math.max(...density);
+  const imageData = ctx.createImageData(W, H);
+  for (let i = 0; i < density.length; i++) {
+    const t = dMax > 0 ? density[i] / dMax : 0;
+    // Colour: dark → cyan → white
+    const r = Math.round(t < 0.5 ? 0 : (t - 0.5) * 2 * 255);
+    const g = Math.round(t < 0.5 ? t * 2 * 229 : 229 + (t - 0.5) * 2 * 26);
+    const b = Math.round(t < 0.5 ? t * 2 * 255 : 255);
+    const a = t > 0.01 ? Math.round(t * 220 + 35) : 0;
+    imageData.data[i * 4]     = r;
+    imageData.data[i * 4 + 1] = g;
+    imageData.data[i * 4 + 2] = b;
+    imageData.data[i * 4 + 3] = a;
+  }
+  ctx.putImageData(imageData, 0, 0);
 
-      function updateCSI() {
-        document.getElementById("csi-cam-status").textContent = cameraActive
-          ? "Active ✓"
-          : "Inactive";
-      }
+  // Dot markers
+  coords.forEach(([x, y]) => {
+    const [cx, cy] = toCanvas(x, y);
+    ctx.beginPath();
+    ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fill();
+  });
 
-      function startAnalysis(filename) {
-        analysisPanel.classList.remove("hidden");
-        setStatus("ANALYSING...", "scanning");
-        scanOverlay.classList.add("active");
+  // Axis labels
+  ctx.font = '10px Share Tech Mono, monospace';
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  ctx.fillText(`X: ${xMin.toFixed(2)}m`, 6, H - 6);
+  ctx.fillText(`X: ${xMax.toFixed(2)}m`, W - 70, H - 6);
+  ctx.fillText(`Y: ${yMin.toFixed(2)}m`, 6, H - 18);
+  ctx.fillText(`Y: ${yMax.toFixed(2)}m`, 6, 14);
+}
 
-        document.getElementById("progress-log").innerHTML = "";
-        document.getElementById("progress-fill").style.width = "10%";
+// ==============================
+// COORD TABLE
+// ==============================
+function renderCoordTable(coords) {
+  const tbody = document.getElementById('coord-tbody');
+  if (!coords.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="4">No wet windows detected</td></tr>';
+    return;
+  }
+  tbody.innerHTML = coords.slice(0, 200).map(([x, y, wi], i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td class="x-val">${x.toFixed(4)}</td>
+      <td class="y-val">${y.toFixed(4)}</td>
+      <td>${wi}</td>
+    </tr>
+  `).join('');
+  if (coords.length > 200) {
+    tbody.innerHTML += `<tr class="empty-row"><td colspan="4">… ${coords.length - 200} more rows</td></tr>`;
+  }
+}
 
-        logMsg("📡 Connecting to backend...");
-        logMsg(`📂 Loading: ${filename || "auto-select"}`);
-        document.getElementById("progress-fill").style.width = "30%";
-
-        fetch("http://127.0.0.1:5000/run-test", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ filename: filename || null })
-        })
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.error) {
-              logMsg("❌ Backend error: " + data.error);
-              setStatus("ERROR — " + data.error.toUpperCase().slice(0, 40), "");
-              document.getElementById("progress-fill").style.width = "100%";
-              return;
-            }
-            document.getElementById("progress-fill").style.width = "100%";
-            logMsg(`✓ Scanned ${data.total_windows} windows`);
-            logMsg(`✓ Wet detections: ${data.wet_windows}`);
-            logMsg("✓ Analysis complete!");
-
-            document.getElementById("csi-test-file").textContent = data.test_file || "—";
-            document.getElementById("csi-windows").textContent = data.total_windows || 0;
-
-            setTimeout(() => {
-              hideAllPanels();
-              scanOverlay.classList.remove("active");
-
-              if (data.is_wet) {
-                drawARGrid(data.coords);
-                renderWetResult(data.coords, data.total_windows);
-                setStatus("⚠ SEEPAGE DETECTED", "scanning");
-              } else {
-                drawARGrid([]);
-                renderDryResult(data.total_windows);
-                setStatus("✅ WALL DRY / SECURE", "active");
-              }
-
-              document.getElementById("csi-mode").textContent =
-                "Auto Test (Backend)";
-              document.getElementById("csi-last-scan").textContent =
-                new Date().toLocaleTimeString();
-            }, 800);
-          })
-          .catch((err) => {
-            console.error(err);
-            logMsg("❌ Backend connection failed");
-            setStatus("ERROR — BACKEND NOT RUNNING", "");
-          });
-      }
-
-      // ── INIT ──
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setStatus("CAMERA API NOT SUPPORTED", "");
-        btnCamera.disabled = true;
-        btnCamera.textContent = "NOT SUPPORTED";
-      }
-    </script>
-  </body>
+// ==============================
+// BOOT
+// ==============================
+window.addEventListener('load', initSystem);
+</script>
+</body>
 </html>
